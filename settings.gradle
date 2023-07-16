@@ -1,0 +1,12 @@
+/*
+ * Copyright James Brown 2023
+ * Author: James Brown
+ */
+
+plugins {
+    id("org.gradle.toolchains.foojay-resolver-convention") version "0.6.0"
+}
+
+rootProject.name = 'lawu'
+
+include 'bindings'
