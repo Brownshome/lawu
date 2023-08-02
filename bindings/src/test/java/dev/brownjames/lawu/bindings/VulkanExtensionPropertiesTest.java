@@ -9,6 +9,6 @@ class VulkanExtensionPropertiesTest {
 	void queryExtensions() {
 		var extensions = VulkanExtensionProperties.all();
 
-		assertTrue(extensions.stream().anyMatch(extension -> extension.name().equals("VK_KHR_display")));
+		assertTrue(extensions.stream().anyMatch(extension -> extension.name().equals("VK_KHR_surface")));
 	}
 }

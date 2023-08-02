@@ -69,12 +69,43 @@ test {
 }
 
 jextract {
-	header("C:/VulkanSDK/1.3.250.1/Include/vulkan/vulkan.h") {
+	header("C:/Program Files/GLFW/glfw-3.4/include/GLFW/glfw3.h") {
+		libraries = [ 'glfw3', 'vulkan-1' ]
+		targetPackage = 'dev.brownjames.lawu.bindings.glfw'
+		definedMacros = [ 'VK_USE_PLATFORM_WIN32_KHR', '_WIN32', 'GLFW_INCLUDE_VULKAN', 'GLFW_DLL' ]
+		includes = [
+				"${System.env.VULKAN_SDK}/Include",
+				'C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.36.32532\\include'
+		]
+
+		functions = [
+				'glfwVulkanSupported',
+				'glfwSetErrorCallback',
+		        'glfwInit',
+				'glfwGetRequiredInstanceExtensions',
+				'glfwTerminate',
+				'glfwInitVulkanLoader',
+				'glfwGetPhysicalDevicePresentationSupport'
+		]
+
+		constants = [
+		        'GLFW_TRUE',
+				'GLFW_NOT_INITIALIZED'
+		]
+
+		typedefs = [
+		        'GLFWerrorfun',
+		        'uint32_t',
+				'PFN_vkGetInstanceProcAddr'
+		]
+	}
+
+	header("${System.env.VULKAN_SDK}/Include/vulkan/vulkan.h") {
 		libraries = [ 'vulkan-1' ]
 		targetPackage = 'dev.brownjames.lawu.bindings'
-		definedMacros = [ 'VK_USE_PLATFORM_WIN32_KHR', '_WIN32' ]
+		definedMacros = [ 'VK_USE_PLATFORM_WIN32_KHR', '_WIN32', 'GLFW_INCLUDE_VULKAN', 'GLFW_DLL' ]
 		includes = [
-				'C:\\VulkanSDK\\1.3.250.1\\Include',
+				"${System.env.VULKAN_SDK}/Include",
 				'C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.36.32532\\include'
 		]
 

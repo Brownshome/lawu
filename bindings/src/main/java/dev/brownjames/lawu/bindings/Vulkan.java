@@ -1,8 +1,9 @@
 package dev.brownjames.lawu.bindings;
 
-import de.skuzzle.semantic.Version;
-
 import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
+
+import dev.brownjames.lawu.bindings.glfw.glfw3_h;
 
 import static dev.brownjames.lawu.bindings.vulkan_h.*;
 
