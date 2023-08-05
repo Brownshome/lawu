@@ -1,0 +1,6 @@
+[submodule "glfw/glfw"]
+	path = glfw/glfw
+	url = https://github.com/glfw/glfw.git
+[submodule "jextract"]
+	path = jextract
+	url = https://github.com/Brownshome/jextract.git
