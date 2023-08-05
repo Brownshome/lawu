@@ -9,4 +9,4 @@ plugins {
 
 rootProject.name = 'lawu'
 
-include 'bindings'
+include 'vulkan'
