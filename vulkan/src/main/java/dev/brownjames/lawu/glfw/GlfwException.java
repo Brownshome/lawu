@@ -1,4 +1,4 @@
-package dev.brownjames.lawu.bindings.glfw;
+package dev.brownjames.lawu.glfw;
 
 public class GlfwException extends RuntimeException {
 	private final int errorCode;

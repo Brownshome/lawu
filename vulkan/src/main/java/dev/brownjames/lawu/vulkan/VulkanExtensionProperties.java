@@ -1,12 +1,12 @@
-package dev.brownjames.lawu.bindings;
+package dev.brownjames.lawu.vulkan;
 
-import dev.brownjames.lawu.bindings.VkExtensionProperties;
+import dev.brownjames.lawu.vulkan.VkExtensionProperties;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.util.List;
 
-import static dev.brownjames.lawu.bindings.vulkan_h.*;
+import static dev.brownjames.lawu.vulkan.vulkan_h.*;
 
 public record VulkanExtensionProperties(String name, int version) {
 	public static List<VulkanExtensionProperties> all() {

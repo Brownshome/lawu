@@ -1,4 +1,4 @@
-package dev.brownjames.lawu.bindings;
+package dev.brownjames.lawu.vulkan;
 
 import de.skuzzle.semantic.Version;
 
@@ -7,7 +7,7 @@ import java.lang.invoke.MethodHandle;
 import java.util.List;
 import java.util.Optional;
 
-import static dev.brownjames.lawu.bindings.vulkan_h.*;
+import static dev.brownjames.lawu.vulkan.vulkan_h.*;
 
 public final class VulkanInstance implements AutoCloseable {
 	private static final System.Logger LOGGER = System.getLogger(String.valueOf(VulkanInstance.class.getModule().getName()));

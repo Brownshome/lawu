@@ -10,4 +10,5 @@ plugins {
 rootProject.name = 'lawu'
 
 include 'glfw'
+include 'tools'
 include 'vulkan'

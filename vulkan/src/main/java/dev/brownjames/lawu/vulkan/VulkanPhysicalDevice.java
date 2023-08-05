@@ -1,4 +1,4 @@
-package dev.brownjames.lawu.bindings;
+package dev.brownjames.lawu.vulkan;
 
 import java.lang.foreign.MemorySegment;
 

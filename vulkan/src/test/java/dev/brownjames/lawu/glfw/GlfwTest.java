@@ -1,4 +1,4 @@
-package dev.brownjames.lawu.bindings.glfw;
+package dev.brownjames.lawu.glfw;
 
 import org.junit.jupiter.api.Test;
 

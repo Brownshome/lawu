@@ -1,4 +1,4 @@
-package dev.brownjames.lawu.bindings.glfw;
+package dev.brownjames.lawu.glfw;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
@@ -6,7 +6,7 @@ import java.lang.foreign.SegmentScope;
 import java.lang.foreign.SymbolLookup;
 import java.util.List;
 
-import static dev.brownjames.lawu.bindings.glfw.glfw3_h.*;
+import static dev.brownjames.lawu.vulkan.glfw.glfw3_h.*;
 
 public record Glfw() implements AutoCloseable {
 	private static final MemorySegment ERROR_CALLBACK = GLFWerrorfun.allocate((errorCode, description) -> {

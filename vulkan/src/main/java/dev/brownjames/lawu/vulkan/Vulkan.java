@@ -1,11 +1,10 @@
-package dev.brownjames.lawu.bindings;
+package dev.brownjames.lawu.vulkan;
 
 import java.lang.foreign.Arena;
-import java.lang.foreign.MemorySegment;
 
-import dev.brownjames.lawu.bindings.glfw.glfw3_h;
+import dev.brownjames.lawu.vulkan.glfw.glfw3_h;
 
-import static dev.brownjames.lawu.bindings.vulkan_h.*;
+import static dev.brownjames.lawu.vulkan.vulkan_h.*;
 
 public final class Vulkan {
 	public static void checkResult(int result) {

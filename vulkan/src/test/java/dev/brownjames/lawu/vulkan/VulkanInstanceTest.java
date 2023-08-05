@@ -1,4 +1,4 @@
-package dev.brownjames.lawu.bindings;
+package dev.brownjames.lawu.vulkan;
 
 import de.skuzzle.semantic.Version;
 import org.junit.jupiter.api.Test;
