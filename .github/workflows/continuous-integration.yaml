@@ -1,0 +1,93 @@
+name: continuous integration
+
+on:
+  pull_request:
+    branches: [ master ]
+
+  workflow_dispatch:
+
+jobs:
+  run-tests:
+    runs-on: ubuntu-latest
+
+    env:
+      JEXTRACT_URL: https://download.java.net/java/early_access/jextract/21/1/openjdk-21-jextract+1-2_linux-x64_bin.tar.gz
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Cache JExtract
+        id: cache-jextract
+        uses: actions/cache@v4
+        with:
+          path: jextract-21
+          key: JExtract-${{ env.JEXTRACT_URL }}
+
+      - name: Setup JExtract
+        if: ${{ steps.cache-jextract.outputs.cache-hit != 'true' }}
+        run: |
+          wget -O jextract.tar.gz https://download.java.net/java/early_access/jextract/21/1/openjdk-21-jextract+1-2_linux-x64_bin.tar.gz
+          tar -xvzf jextract.tar.gz
+          rm jextract.tar.gz
+
+      - name: Add JExtract to PATH
+        run: |
+          echo $PWD/jextract-21/bin >> $GITHUB_PATH
+
+      - name: Setup Vulkan
+        uses: humbletim/install-vulkan-sdk@v1.1.1
+        with:
+          version: 1.3.280.0
+          cache: true
+
+      - name: Add Vulkan to LD_LIBRARY_PATH
+        run: |
+          echo LD_LIBRARY_PATH=$PWD/VULKAN_SDK/lib >> $GITHUB_ENV
+
+      - name: Install Mesa Drivers
+        run: |
+          sudo apt install mesa-vulkan-drivers
+
+      - name: Cache GLFW3
+        id: cache-glfw3
+        uses: actions/cache@v4
+        with:
+          path: glfw/glfw/build/install/lib
+          key: GLFW-${{ hashFiles('glfw/glfw/**/*') }}
+
+      - name: Setup GLFW3
+        if: ${{ steps.cache-glfw3.outputs.cache-hit != 'true' }}
+        run: |
+          sudo apt install libwayland-dev libxkbcommon-dev xorg-dev
+          cmake -S glfw/glfw -B glfw/glfw/build -DCMAKE_INSTALL_PREFIX=$PWD/glfw/glfw/build/install -DBUILD_SHARED_LIBS=ON -DGLFW_BUILD_EXAMPLES=OFF -DGLFW_BUILD_TESTS=OFF -DGLFW_BUILD_DOCS=OFF
+          cmake --build glfw/glfw/build --target install
+
+      - name: Add GLFW3 to LD_LIBRARY_PATH
+        run: |
+          echo LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PWD/glfw/glfw/build/install/lib >> $GITHUB_ENV
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          cache-read-only: false
+
+      - name: Run Tests
+        uses: coactions/setup-xvfb@v1
+        with:
+          run:
+            ./gradlew test
+
+      - name: Post Test Results
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        if: always()
+        with:
+          files: '**/build/test-results/**/*.xml'
