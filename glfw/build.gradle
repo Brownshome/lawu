@@ -1,0 +1,72 @@
+/*
+ * Copyright James Brown 2023
+ * Author: James Brown
+ */
+
+plugins {
+	id 'java-library'
+	id 'io.github.krakowski.jextract' version '0.4.2'
+}
+
+version '0.1.0'
+
+repositories {
+	mavenCentral()
+}
+
+test {
+	useJUnitPlatform()
+}
+
+dependencies {
+	testImplementation('org.junit.jupiter:junit-jupiter') {
+		version {
+			strictly '[5.7.1, 6)'
+		}
+	}
+}
+
+javadoc {
+	options {
+		source = java.sourceCompatibility.majorVersion
+		links += "https://docs.oracle.com/en/java/javase/${java.sourceCompatibility.majorVersion}/docs/api".toString()
+	}
+}
+
+tasks.withType(JavaCompile).configureEach {
+	options.javaModuleVersion = provider { project.version }
+	options.encoding = 'UTF-8'
+	options.compilerArgs += '--enable-preview'
+	options.fork = true
+	options.forkOptions.memoryMaximumSize = '2g'
+}
+
+test {
+	useJUnitPlatform()
+	enableAssertions true
+}
+
+import org.apache.tools.ant.taskdefs.condition.Os
+
+jextract {
+	header("${project.projectDir}/glfw/include/GLFW/glfw3.h") {
+		targetPackage = 'dev.brownjames.lawu.glfw.bindings'
+
+		if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+			libraries = [ 'glfw3', 'vulkan-1' ]
+
+			definedMacros = [ 'VK_USE_PLATFORM_WIN32_KHR', '_WIN32', 'GLFW_INCLUDE_VULKAN', 'GLFW_INCLUDE_NONE', 'GLFW_DLL' ]
+			includes = [
+					"${System.env.VULKAN_SDK}/Include",
+					'C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.36.32532\\include'
+			]
+		} else {
+			libraries = [ 'glfw', 'vulkan' ]
+
+			definedMacros = [ 'GLFW_INCLUDE_VULKAN', 'GLFW_INCLUDE_NONE' ]
+			includes = [
+					"${System.env.VULKAN_SDK}/include"
+			]
+		}
+	}
+}
