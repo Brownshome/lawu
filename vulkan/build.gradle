@@ -1,0 +1,78 @@
+import org.apache.tools.ant.taskdefs.condition.Os
+
+/*
+ * Copyright James Brown 2023
+ * Author: James Brown
+ */
+
+plugins {
+	id 'java-library'
+	id 'io.github.krakowski.jextract' version '0.4.2'
+}
+
+version '0.1.0'
+
+repositories {
+	mavenCentral()
+}
+
+test {
+	useJUnitPlatform()
+}
+
+dependencies {
+	implementation('de.skuzzle:semantic-version') {
+		version {
+			strictly '[2.1.0, 3)'
+		}
+	}
+
+	testImplementation('org.junit.jupiter:junit-jupiter') {
+		version {
+			strictly '[5.7.1, 6)'
+		}
+	}
+}
+
+javadoc {
+	options {
+		source = java.sourceCompatibility.majorVersion
+		links += "https://docs.oracle.com/en/java/javase/${java.sourceCompatibility.majorVersion}/docs/api".toString()
+	}
+}
+
+tasks.withType(JavaCompile).configureEach {
+	options.javaModuleVersion = provider { project.version.toString() }
+	options.encoding = 'UTF-8'
+	options.compilerArgs += '--enable-preview'
+	options.fork = true
+	options.forkOptions.memoryMaximumSize = '2g'
+}
+
+test {
+	useJUnitPlatform()
+	enableAssertions true
+}
+
+import org.apache.tools.ant.taskdefs.condition.Os
+
+jextract {
+	header("${System.env.VULKAN_SDK}/include/vulkan/vulkan.h") {
+		libraries = [ 'vulkan-1' ]
+		targetPackage = 'dev.brownjames.lawu.vulkan.bindings'
+		if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+			libraries = [ 'vulkan-1' ]
+
+			definedMacros = [ 'VK_USE_PLATFORM_WIN32_KHR', '_WIN32' ]
+			includes = [
+					"${System.env.VULKAN_SDK}/Include",
+					'C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.36.32532\\include'
+			]
+		} else {
+			libraries = [ 'vulkan' ]
+			includes = [
+					"${System.env.VULKAN_SDK}/include"
+			]
+		}
+	}
+}
