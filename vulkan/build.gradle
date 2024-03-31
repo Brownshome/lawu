@@ -1,5 +1,3 @@
-import org.apache.tools.ant.taskdefs.condition.Os
-
 /*
  * Copyright James Brown 2023
  * Author: James Brown
@@ -8,6 +6,7 @@ import org.apache.tools.ant.taskdefs.condition.Os
 plugins {
 	id 'java-library'
 	id 'io.github.krakowski.jextract' version '0.4.2'
+	id 'com.github.mrsarm.jshell.plugin' version '1.2.1'
 }
 
 version '0.1.0'
@@ -75,4 +74,8 @@ jextract {
 			]
 		}
 	}
+}
+
+jshell {
+	args '--enable-preview'
 }
