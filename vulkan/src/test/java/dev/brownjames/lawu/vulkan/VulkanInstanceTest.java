@@ -1,40 +1,37 @@
 package dev.brownjames.lawu.vulkan;
 
 import de.skuzzle.semantic.Version;
-import dev.brownjames.lawu.vulkan.bindings.VkDebugUtilsMessengerCallbackDataEXT;
+import dev.brownjames.lawu.vulkan.debugutils.DebugUtilsExtension;
+import dev.brownjames.lawu.vulkan.directdriverloading.DirectDriverLoadingMode;
 import org.junit.jupiter.api.Test;
-
-import java.lang.foreign.MemorySegment;
-import java.util.EnumSet;
-import java.util.function.UnaryOperator;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class VulkanInstanceTest implements DebugUtilsMessengerCallback {
-	private static final System.Logger LOGGER = System.getLogger(String.valueOf(VulkanInstanceTest.class.getModule().getName()));
-
-	private VulkanInstance.Builder testInstanceBuilder() {
-		return VulkanInstance.builder()
-			.withDebugCallback(BitFlag.allFlags(DebugUtilsMessageSeverity.class),
-						BitFlag.allFlags(DebugUtilsMessageType.class),
-						this);
-	}
-
+final class VulkanInstanceTest {
 	@Test
-	void createInstance() {
-		var v = testInstanceBuilder()
-				.withApplicationName("create")
-				.withApplicationVersion(Version.create(0, 1))
-				.withEngineName("in-house")
-				.withEngineVersion(Version.create(0, 1))
-				.build();
+	void createDefaultInstance() throws VulkanValidationException {
+		var v = VulkanInstance.create();
 
 		v.close();
 	}
 
 	@Test
-	void allPhysicalDevices() {
-		try (var vulkan = testInstanceBuilder().build()) {
+	void createInstance() throws VulkanValidationException {
+		var v = TestVulkanInstanceHelper.builder()
+				.withApplicationInfo(new ApplicationInfo()
+						.withApplicationName("create")
+						.withApplicationVersion(Version.create(0, 1))
+						.withEngineName("in-house")
+						.withEngineVersion(Version.create(0, 1)))
+				.validate();
+
+		v.close();
+	}
+
+	@Test
+	void allPhysicalDevices() throws VulkanValidationException {
+		try (var vulkan = TestVulkanInstanceHelper.builder().validate();
+		     var _ = TestVulkanInstanceHelper.createMessenger(DebugUtilsExtension.extend(vulkan))) {
 			var devices = vulkan.allPhysicalDevices();
 
 			assertFalse(devices.isEmpty());
@@ -42,20 +39,14 @@ class VulkanInstanceTest implements DebugUtilsMessengerCallback {
 	}
 
 	@Test
-	void directDriverLoading() {
-		var vulkan = testInstanceBuilder().withDrivers(DirectDriverLoadingMode.EXCLUSIVE, new TestVulkanDriver()).build();
+	void directDriverLoading() throws VulkanValidationException {
+		var vulkan = TestVulkanInstanceHelper.builder().withDrivers(DirectDriverLoadingMode.EXCLUSIVE, new TestVulkanDriver()).validate();
 		vulkan.close();
 	}
 
-	@Override
-	public void callback(DebugUtilsMessageSeverity severity, int messageTypes, MemorySegment callbackData) {
-		var message = VkDebugUtilsMessengerCallbackDataEXT.pMessage$get(callbackData).getUtf8String(0);
-
-		LOGGER.log(switch (severity) {
-			case VERBOSE -> System.Logger.Level.DEBUG;
-			case INFO -> System.Logger.Level.INFO;
-			case WARNING -> System.Logger.Level.WARNING;
-			case ERROR -> System.Logger.Level.ERROR;
-		}, "Vulkan Debug Message: {0} (type: {1})", message, messageTypes);
+	@Test
+	void portabilityEnumeration() throws VulkanValidationException {
+		var vulkan = TestVulkanInstanceHelper.builder().withPortabilityEnumeration().validate();
+		vulkan.close();
 	}
 }

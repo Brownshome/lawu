@@ -4,10 +4,10 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class VulkanTest {
+record VulkanVersionNumberTest() {
 	@Test
-	void getInstanceVersion() {
-		var version = Vulkan.getInstanceVersion();
+	void instanceVersion() {
+		var version = VulkanVersionNumber.instanceVersion();
 		assertEquals(0, version.variant());
 		assertEquals(1, version.major());
 		assertEquals(3, version.minor());
