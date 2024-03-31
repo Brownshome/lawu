@@ -1,5 +1,6 @@
-package dev.brownjames.lawu.vulkan;
+package dev.brownjames.lawu.vulkan.directdriverloading;
 
+import dev.brownjames.lawu.vulkan.InstanceCreateInfo;
 import dev.brownjames.lawu.vulkan.bindings.VkDirectDriverLoadingInfoLUNARG;
 import dev.brownjames.lawu.vulkan.bindings.VkDirectDriverLoadingListLUNARG;
 import dev.brownjames.lawu.vulkan.bindings.vulkan_h;
@@ -8,7 +9,7 @@ import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.util.List;
 
-public record DirectDriverLoadingList(DirectDriverLoadingMode mode, List<VulkanDriver> drivers) implements VulkanInstance.CreateNext {
+public record DirectDriverLoadingList(DirectDriverLoadingMode mode, List<VulkanDriver> drivers) implements InstanceCreateInfo.Next {
 	@Override
 	public MemorySegment createNativeStructure(Arena arena, MemorySegment next) {
 		var structure = VkDirectDriverLoadingListLUNARG.allocate(arena);

@@ -1,5 +1,6 @@
-package dev.brownjames.lawu.vulkan;
+package dev.brownjames.lawu.vulkan.debugutils;
 
+import dev.brownjames.lawu.vulkan.BitFlag;
 import dev.brownjames.lawu.vulkan.bindings.vulkan_h;
 
 public enum DebugUtilsMessageType implements BitFlag {

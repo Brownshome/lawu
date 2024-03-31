@@ -1,4 +1,4 @@
-package dev.brownjames.lawu.vulkan;
+package dev.brownjames.lawu.vulkan.directdriverloading;
 
 import dev.brownjames.lawu.vulkan.bindings.vulkan_h;
 

@@ -1,5 +1,7 @@
-package dev.brownjames.lawu.vulkan;
+package dev.brownjames.lawu.vulkan.debugutils;
 
+import dev.brownjames.lawu.vulkan.BitFlag;
+import dev.brownjames.lawu.vulkan.InstanceCreateInfo;
 import dev.brownjames.lawu.vulkan.bindings.VkDebugUtilsMessengerCallbackDataEXT;
 import dev.brownjames.lawu.vulkan.bindings.VkDebugUtilsMessengerCreateInfoEXT;
 import dev.brownjames.lawu.vulkan.bindings.vulkan_h;
@@ -15,7 +17,7 @@ public record DebugUtilsMessengerCreateInfo(
 		Collection<DebugUtilsMessageSeverity> severities,
 		Collection<DebugUtilsMessageType> types,
 		DebugUtilsMessengerCallback callback
-) implements VulkanInstance.CreateNext {
+) implements InstanceCreateInfo.Next {
 	@Override
 	public MemorySegment createNativeStructure(Arena arena, MemorySegment next) {
 		var structure = VkDebugUtilsMessengerCreateInfoEXT.allocate(arena);
@@ -50,11 +52,15 @@ public record DebugUtilsMessengerCreateInfo(
 
 			VkDebugUtilsMessengerCreateInfoEXT.pfnUserCallback$set(structure, upCallMethod);
 		} catch (NoSuchMethodException | IllegalAccessException e) {
-			throw new RuntimeException(e);
+			throw new AssertionError(e);
 		}
 
 		VkDebugUtilsMessengerCreateInfoEXT.pUserData$set(structure, MemorySegment.NULL);
 
 		return structure;
+	}
+
+	public MemorySegment createNativeStructure(Arena arena) {
+		return createNativeStructure(arena, MemorySegment.NULL);
 	}
 }

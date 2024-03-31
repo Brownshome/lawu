@@ -1,4 +1,4 @@
-package dev.brownjames.lawu.vulkan;
+package dev.brownjames.lawu.vulkan.directdriverloading;
 
 import java.lang.foreign.MemorySegment;
 
