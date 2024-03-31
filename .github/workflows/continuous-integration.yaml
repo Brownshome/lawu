@@ -49,9 +49,10 @@ jobs:
           version: 1.3.280.0
           cache: true
 
-      - name: Add Vulkan to LD_LIBRARY_PATH
+      - name: Add Vulkan to LD_LIBRARY_PATH and VK_ADD_LAYER_PATH
         run: |
-          echo LD_LIBRARY_PATH=$PWD/VULKAN_SDK/lib >> $GITHUB_ENV
+          echo LD_LIBRARY_PATH=$VULKAN_SDK/lib >> $GITHUB_ENV
+          echo VK_ADD_LAYER_PATH=$VULKAN_SDK/share/vulkan/explicit_layer.d >> $GITHUB_ENV
 
       - name: Install Mesa Drivers
         run: |
@@ -83,7 +84,7 @@ jobs:
       - name: Run Tests
         uses: coactions/setup-xvfb@v1
         with:
-          run:
+          run: |
             ./gradlew test
 
       - name: Post Test Results
