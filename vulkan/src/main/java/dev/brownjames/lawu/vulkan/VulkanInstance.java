@@ -10,6 +10,7 @@ public final class VulkanInstance implements AutoCloseable, VulkanHandle {
 
 	private final MemorySegment handle;
 	private final MemorySegment allocator;
+	private final Arena arena;
 
 	private final InstanceFunctionLookup instanceFunctionLookup;
 
@@ -31,18 +32,19 @@ public final class VulkanInstance implements AutoCloseable, VulkanHandle {
 	public VulkanInstance(MemorySegment handle) {
 		this.handle = handle;
 		this.allocator = MemorySegment.NULL;
+		this.arena = Arena.ofConfined();
 
 		instanceFunctionLookup = Vulkan.globalFunctionLookup()
 				.instanceFunctionLookup(this);
 
 		destroyInstance = instanceFunctionLookup
 				.lookup("vkDestroyInstance")
-				.map(address -> PFN_vkDestroyInstance.ofAddress(address, Arena.global()))
+				.map(address -> PFN_vkDestroyInstance.ofAddress(address, arena))
 				.orElseThrow();
 
 		enumeratePhysicalDevices = instanceFunctionLookup
 				.lookup("vkEnumeratePhysicalDevices")
-				.map(address -> PFN_vkEnumeratePhysicalDevices.ofAddress(address, Arena.global()))
+				.map(address -> PFN_vkEnumeratePhysicalDevices.ofAddress(address, arena))
 				.orElseThrow();
 	}
 
@@ -53,6 +55,10 @@ public final class VulkanInstance implements AutoCloseable, VulkanHandle {
 
 	public MemorySegment allocator() {
 		return allocator;
+	}
+
+	public Arena arena() {
+		return arena;
 	}
 
 	public InstanceFunctionLookup instanceFunctionLookup() {
@@ -77,5 +83,6 @@ public final class VulkanInstance implements AutoCloseable, VulkanHandle {
 	@Override
 	public void close() {
 		destroyInstance.apply(handle, allocator);
+		arena.close();
 	}
 }
