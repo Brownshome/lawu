@@ -1,12 +1,10 @@
 package dev.brownjames.lawu.vulkan;
 
 import dev.brownjames.lawu.vulkan.bindings.*;
+import dev.brownjames.lawu.vulkan.directdriverloading.VulkanDriver;
 
-import java.awt.geom.Area;
 import java.lang.foreign.*;
-import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
-import java.lang.invoke.MethodType;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 
@@ -45,6 +43,38 @@ record TestVulkanDriver() implements VulkanDriver {
 						}
 					}, FunctionDescriptor.of(ValueLayout.JAVA_INT,
 							AddressLayout.ADDRESS.withTargetLayout(vulkan_h.uint32_t)));
+					case "vk_icdGetPhysicalDeviceProcAddr" -> makeUpcall(new Object() {
+						MemorySegment call(MemorySegment instance, MemorySegment name) {
+							return MemorySegment.NULL;
+						}
+					}, FunctionDescriptor.of(AddressLayout.ADDRESS,
+							vulkan_h.VkInstance,
+							BindingHelper.CHAR_POINTER));
+					case "vk_icdEnumerateAdapterPhysicalDevices" -> makeUpcall(new Object() {
+						int call(MemorySegment instance, MemorySegment adapterLUID, MemorySegment physicalDeviceCount, MemorySegment physicalDevices) {
+							if (physicalDevices.address() == 0L) {
+								physicalDeviceCount.set(vulkan_h.uint32_t, 0, 0);
+							}
+
+							return vulkan_h.VK_SUCCESS();
+						}
+					}, FunctionDescriptor.of(ValueLayout.JAVA_INT,
+							vulkan_h.VkInstance,
+							MemoryLayout.structLayout(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT),
+							AddressLayout.ADDRESS.withTargetLayout(vulkan_h.uint32_t),
+							AddressLayout.ADDRESS.withTargetLayout(vulkan_h.VkPhysicalDevice)));
+					case "vkEnumeratePhysicalDevices" -> makeUpcall(new Object() {
+						int call(MemorySegment instance, MemorySegment physicalDeviceCount, MemorySegment physicalDevices) {
+							if (physicalDevices.address() == 0L) {
+								physicalDeviceCount.set(vulkan_h.uint32_t, 0, 0);
+							}
+
+							return vulkan_h.VK_SUCCESS();
+						}
+					}, FunctionDescriptor.of(ValueLayout.JAVA_INT,
+							vulkan_h.VkInstance,
+							AddressLayout.ADDRESS.withTargetLayout(vulkan_h.uint32_t),
+							AddressLayout.ADDRESS.withTargetLayout(vulkan_h.VkPhysicalDevice)));
 					case "vkEnumerateInstanceVersion" -> makeUpcall(new Object() {
 						int call(MemorySegment apiVersion) {
 							apiVersion.set(vulkan_h.uint32_t, 0, vulkan_h.VK_VERSION_1_3());

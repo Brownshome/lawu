@@ -1,6 +1,11 @@
 package dev.brownjames.lawu.vulkan;
 
 import de.skuzzle.semantic.Version;
+import dev.brownjames.lawu.vulkan.bindings.PFN_vkEnumerateInstanceVersion;
+import dev.brownjames.lawu.vulkan.bindings.vulkan_h;
+
+import java.lang.foreign.Arena;
+import java.util.Optional;
 
 /**
  * A Vulkan version number
@@ -10,6 +15,14 @@ import de.skuzzle.semantic.Version;
  * @param patch the patch version number
  */
 public record VulkanVersionNumber(int variant, int major, int minor, int patch) {
+	/*
+	 * @note james.brown 31 March 2024
+	 * The enumerate instance version call may not be present on pre-1.1 Vulkan loaders
+	 */
+	private static final Optional<PFN_vkEnumerateInstanceVersion> enumerateInstanceVersion = Vulkan.globalFunctionLookup()
+			.lookup("vkEnumerateInstanceVersion")
+			.map(address -> PFN_vkEnumerateInstanceVersion.ofAddress(address, Arena.global()));
+
 	private static final int DEFAULT_VARIANT = 0;
 	private static final int VARIANT_BITS = 3;
 	private static final int MAJOR_BITS = 7;
@@ -21,6 +34,22 @@ public record VulkanVersionNumber(int variant, int major, int minor, int patch) 
 		assert Integer.compareUnsigned(major, 1 << MAJOR_BITS) < 0;
 		assert Integer.compareUnsigned(minor, 1 << MINOR_BITS) < 0;
 		assert Integer.compareUnsigned(patch, 1 << PATCH_BITS) < 0;
+	}
+
+	public static VulkanVersionNumber instanceVersion() {
+		return enumerateInstanceVersion.map(f -> {
+			try (var arena = Arena.ofConfined()) {
+				var version = arena.allocate(vulkan_h.uint32_t);
+				var result = f.apply(version);
+				Vulkan.checkResult(result);
+
+				return VulkanVersionNumber.of(version.get(vulkan_h.uint32_t, 0L));
+			}
+		}).orElse(VulkanVersionNumber.of(vulkan_h.VK_VERSION_1_0()));
+	}
+
+	public static VulkanVersionNumber headerVersion() {
+		return VulkanVersionNumber.of(vulkan_h.VK_HEADER_VERSION_COMPLETE());
 	}
 
 	/**
