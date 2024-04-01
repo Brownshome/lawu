@@ -45,7 +45,7 @@ public record VulkanVersionNumber(int variant, int major, int minor, int patch) 
 
 				return VulkanVersionNumber.of(version.get(vulkan_h.uint32_t, 0L));
 			}
-		}).orElse(VulkanVersionNumber.of(vulkan_h.VK_VERSION_1_0()));
+		}).orElse(VulkanVersionNumber.of(vulkan_h.VK_API_VERSION_1_0()));
 	}
 
 	public static VulkanVersionNumber headerVersion() {
