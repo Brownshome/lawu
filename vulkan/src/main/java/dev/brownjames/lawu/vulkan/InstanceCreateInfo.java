@@ -147,7 +147,8 @@ public record InstanceCreateInfo(
 
 	public VulkanInstance build() {
 		try (var arena = Arena.ofConfined()) {
-			return VulkanInstance.create(createNativeStructure(arena));
+			return VulkanInstance.create(createNativeStructure(arena),
+					applicationInfo.flatMap(ApplicationInfo::apiVersion).orElse(VulkanVersionNumber.of(vulkan_h.VK_API_VERSION_1_0())));
 		}
 	}
 
