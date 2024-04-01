@@ -155,7 +155,7 @@ public record InstanceCreateInfo(
 		var instanceCreateInfo = VkInstanceCreateInfo.allocate(arena);
 		VkInstanceCreateInfo.sType$set(instanceCreateInfo, vulkan_h.VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO());
 
-		VkInstanceCreateInfo.pNext$set(instanceCreateInfo, NextStructure.buildNativeStructureChain(arena, nexts));
+		VkInstanceCreateInfo.pNext$set(instanceCreateInfo, NextStructure.buildNativeStructureChain(arena, nexts).head());
 		VkInstanceCreateInfo.flags$set(instanceCreateInfo, BitFlag.getFlagBits(flags));
 		VkInstanceCreateInfo.pApplicationInfo$set(instanceCreateInfo, applicationInfo
 				.map(info -> info.createNativeStructure(arena))
