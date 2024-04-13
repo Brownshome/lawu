@@ -5,11 +5,84 @@ import dev.brownjames.lawu.vulkan.getphysicaldeviceproperties2.GetPhysicalDevice
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.SegmentAllocator;
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 public final class PhysicalDevice implements VulkanHandle {
+	public enum Type {
+		OTHER(vulkan_h.VK_PHYSICAL_DEVICE_TYPE_OTHER()),
+		INTEGRATED_GPU(vulkan_h.VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU()),
+		DISCRETE_GPU(vulkan_h.VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU()),
+		VIRTUAL_GPU(vulkan_h.VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU()),
+		CPU(vulkan_h.VK_PHYSICAL_DEVICE_TYPE_CPU());
+
+		private final int value;
+
+		Type(int value) {
+			this.value = value;
+		}
+
+		public static Type of(int value) {
+			assert Arrays.stream(values()).allMatch(e -> e.ordinal() == e.value());
+			return values()[value];
+		}
+
+		public int value() {
+			return value;
+		}
+	}
+
+	public record Properties(
+			VulkanVersionNumber apiVersion,
+			int driverVersion,
+			int vendorId,
+			int deviceId,
+			Type deviceType,
+			String deviceName,
+			PipelineCacheUUID pipelineCacheUUID,
+			MemorySegment limits,
+			MemorySegment sparseProperties
+	) {
+		public static Properties of(MemorySegment raw) {
+			return new Properties(
+					VulkanVersionNumber.of(VkPhysicalDeviceProperties.apiVersion$get(raw)),
+					VkPhysicalDeviceProperties.driverVersion$get(raw),
+					VkPhysicalDeviceProperties.vendorID$get(raw),
+					VkPhysicalDeviceProperties.deviceID$get(raw),
+					Type.of(VkPhysicalDeviceProperties.deviceType$get(raw)),
+					VkPhysicalDeviceProperties.deviceName$slice(raw).getUtf8String(0),
+					PipelineCacheUUID.of(VkPhysicalDeviceProperties.pipelineCacheUUID$slice(raw)),
+					VkPhysicalDeviceProperties.limits$slice(raw),
+					VkPhysicalDeviceProperties.sparseProperties$slice(raw)
+			);
+		}
+
+		public void asNative(MemorySegment destination) {
+			VkPhysicalDeviceProperties.apiVersion$set(destination, apiVersion.encoded());
+			VkPhysicalDeviceProperties.driverVersion$set(destination, driverVersion);
+			VkPhysicalDeviceProperties.vendorID$set(destination, vendorId);
+			VkPhysicalDeviceProperties.deviceID$set(destination, deviceId);
+			VkPhysicalDeviceProperties.deviceType$set(destination, deviceType.value());
+			VkPhysicalDeviceProperties.deviceName$slice(destination).setUtf8String(0, deviceName);
+			pipelineCacheUUID.asNative(VkPhysicalDeviceProperties.pipelineCacheUUID$slice(destination));
+			VkPhysicalDeviceProperties.limits$slice(destination).copyFrom(limits);
+			VkPhysicalDeviceProperties.sparseProperties$slice(destination).copyFrom(sparseProperties);
+		}
+
+		public MemorySegment asNative(SegmentAllocator allocator) {
+			var raw = VkPhysicalDeviceProperties.allocate(allocator);
+			asNative(raw);
+			return raw;
+		}
+
+		public MemorySegment asNative() {
+			return asNative(Arena.ofAuto());
+		}
+	}
+
 	private final MemorySegment handle;
 	private final VulkanInstance instance;
 
