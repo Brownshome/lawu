@@ -165,7 +165,7 @@ public final class VulkanInstance implements AutoCloseable, VulkanHandle {
 			assert result == vulkan_h.VK_SUCCESS();
 
 			return devices.elements(vulkan_h.VkPhysicalDevice)
-					.map(device -> new PhysicalDevice(device, this))
+					.map(device -> new PhysicalDevice(device.get(vulkan_h.VkPhysicalDevice, 0), this))
 					.toList();
 		}
 	}
