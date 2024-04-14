@@ -7,12 +7,19 @@ plugins {
 	id 'java-library'
 	id 'io.github.krakowski.jextract' version '0.4.2'
 	id 'com.github.mrsarm.jshell.plugin' version '1.2.1'
+	id 'maven-publish'
 }
 
-version '0.1.0'
+group 'dev.brownjames.lawu'
+version '0.1.0-SNAPSHOT'
 
 repositories {
 	mavenCentral()
+}
+
+java {
+	withJavadocJar()
+	withSourcesJar()
 }
 
 test {
@@ -20,7 +27,7 @@ test {
 }
 
 dependencies {
-	implementation('de.skuzzle:semantic-version') {
+	api('de.skuzzle:semantic-version') {
 		version {
 			strictly '[2.1.0, 3)'
 		}
@@ -36,8 +43,12 @@ dependencies {
 javadoc {
 	options {
 		source = java.sourceCompatibility.majorVersion
-		links += "https://docs.oracle.com/en/java/javase/${java.sourceCompatibility.majorVersion}/docs/api".toString()
+		encoding 'UTF-8'
+		addBooleanOption('-enable-preview', true)
+		addStringOption('-module-source-path', "dev.brownjames.lawu.vulkan=src/main/java;build/generated/sources/jextract/main/java")
 	}
+
+	exclude 'dev/brownjames/lawu/vulkan/bindings/**'
 }
 
 tasks.withType(JavaCompile).configureEach {
@@ -78,4 +89,41 @@ jextract {
 
 jshell {
 	args '--enable-preview'
+}
+
+publishing {
+	repositories {
+		maven {
+			name = 'GithubPackages'
+			url = uri('https://maven.pkg.github.com/Brownshome/lawu')
+			credentials {
+				username = project.properties['gpr.usr']
+				password = project.properties['gpr.key']
+			}
+		}
+	}
+
+	publications {
+		mavenJava(MavenPublication) {
+			artifactId 'vulkan'
+			from components.java
+
+			pom {
+				name = 'lawu'
+				description = 'Vulkan bindings for Java using JExtract and the foreign function API'
+				url = 'https://maven.pkg.github.com/Brownshome/lawu'
+				developers {
+					developer {
+						id = 'Brownshome'
+						name = 'James Brown'
+						email = 'james.antony.brown@gmail.com'
+					}
+				}
+				scm {
+					connection = 'scm:git:git://github.com/Brownshome/lawu.git'
+					url = 'https://github.com/Brownshome/lawu'
+				}
+			}
+		}
+	}
 }
