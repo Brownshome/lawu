@@ -19,6 +19,7 @@ public final class VulkanInstance implements AutoCloseable, VulkanHandle {
 	private final PFN_vkGetPhysicalDeviceProperties getPhysicalDeviceProperties;
 	private final PFN_vkGetPhysicalDeviceFeatures getPhysicalDeviceFeatures;
 	private final PFN_vkGetPhysicalDeviceImageFormatProperties getPhysicalDeviceImageFormatProperties;
+	private final PFN_vkGetPhysicalDeviceQueueFamilyProperties getPhysicalDeviceQueueFamilyProperties;
 
 	private interface VersionedFunctionality {
 		default void getPhysicalDeviceProperties2(MemorySegment device, MemorySegment properties) {
@@ -128,6 +129,11 @@ public final class VulkanInstance implements AutoCloseable, VulkanHandle {
 				.map(address -> PFN_vkGetPhysicalDeviceImageFormatProperties.ofAddress(address, arena))
 				.orElseThrow();
 
+		getPhysicalDeviceQueueFamilyProperties = instanceFunctionLookup
+				.lookup("vkGetPhysicalDeviceQueueFamilyProperties")
+				.map(address -> PFN_vkGetPhysicalDeviceQueueFamilyProperties.ofAddress(address, arena))
+				.orElseThrow();
+
 		assert version.major() == VulkanVersionNumber.headerVersion().major() && version.isStandardVariant();
 
 		versionedFunctionality = switch (version.minor()) {
@@ -204,6 +210,10 @@ public final class VulkanInstance implements AutoCloseable, VulkanHandle {
 
 	public void getPhysicalDeviceImageFormatProperties2(MemorySegment device, MemorySegment info, MemorySegment properties) {
 		Vulkan.checkResult(versionedFunctionality.getPhysicalDeviceImageFormatProperties2(device, info, properties));
+	}
+
+	public void getPhysicalDeviceQueueFamilyProperties(MemorySegment device, MemorySegment propertyCount, MemorySegment properties) {
+		getPhysicalDeviceQueueFamilyProperties.apply(device, propertyCount, properties);
 	}
 
 	@Override

@@ -253,4 +253,17 @@ public final class PhysicalDevice implements VulkanHandle {
 		return getImageFormatProperties(arena, format, type, imageTiling, imageUsageFlags, imageCreateFlags,
 				infoNexts, nexts, (info, properties) -> extension.getPhysicalDeviceImageFormatProperties2(handle, info, properties));
 	}
+
+	public List<QueueFamilyProperties> getQueueFamilyProperties() {
+		try (var arena = Arena.ofConfined()) {
+			var count = arena.allocate(vulkan_h.uint32_t);
+			instance.getPhysicalDeviceQueueFamilyProperties(handle, count, MemorySegment.NULL);
+			var result = VkQueueFamilyProperties.allocateArray(count.get(vulkan_h.uint32_t, 0L), arena);
+			instance.getPhysicalDeviceQueueFamilyProperties(handle, count, result);
+
+			return result.elements(VkQueueFamilyProperties.$LAYOUT())
+					.map(QueueFamilyProperties::of)
+					.toList();
+		}
+	}
 }
