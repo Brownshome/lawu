@@ -1,0 +1,48 @@
+/*
+ * Copyright James Brown 2023
+ * Author: James Brown
+ */
+
+plugins {
+	id 'java-library'
+	id 'com.github.mrsarm.jshell.plugin'
+}
+
+repositories {
+	mavenLocal()
+	mavenCentral()
+}
+
+test {
+	useJUnitPlatform()
+}
+
+dependencies {
+	testImplementation('org.junit.jupiter:junit-jupiter') {
+		version {
+			strictly '[5.7.1, 6)'
+		}
+	}
+}
+
+javadoc {
+	options {
+		source = java.sourceCompatibility.majorVersion
+	}
+}
+
+tasks.withType(JavaCompile).configureEach {
+	options.javaModuleVersion = provider { project.version.toString() }
+	options.encoding = 'UTF-8'
+	options.compilerArgs += '--enable-preview'
+}
+
+test {
+	useJUnitPlatform()
+	enableAssertions true
+}
+
+jshell {
+	args '--enable-preview'
+}
+

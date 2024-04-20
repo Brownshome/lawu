@@ -4,20 +4,11 @@
  */
 
 plugins {
-	id 'java-library'
+	id 'dev.brownjames.lawu.java-library'
 	id 'io.github.krakowski.jextract' version '0.4.2'
-	id 'com.github.mrsarm.jshell.plugin' version '1.2.1'
 }
 
 version '0.1.0'
-
-repositories {
-	mavenCentral()
-}
-
-test {
-	useJUnitPlatform()
-}
 
 dependencies {
 	implementation('de.skuzzle:semantic-version') {
@@ -25,32 +16,11 @@ dependencies {
 			strictly '[2.1.0, 3)'
 		}
 	}
-
-	testImplementation('org.junit.jupiter:junit-jupiter') {
-		version {
-			strictly '[5.7.1, 6)'
-		}
-	}
-}
-
-javadoc {
-	options {
-		source = java.sourceCompatibility.majorVersion
-		links += "https://docs.oracle.com/en/java/javase/${java.sourceCompatibility.majorVersion}/docs/api".toString()
-	}
 }
 
 tasks.withType(JavaCompile).configureEach {
-	options.javaModuleVersion = provider { project.version.toString() }
-	options.encoding = 'UTF-8'
-	options.compilerArgs += '--enable-preview'
 	options.fork = true
 	options.forkOptions.memoryMaximumSize = '2g'
-}
-
-test {
-	useJUnitPlatform()
-	enableAssertions true
 }
 
 import org.apache.tools.ant.taskdefs.condition.Os
@@ -74,8 +44,4 @@ jextract {
 			]
 		}
 	}
-}
-
-jshell {
-	args '--enable-preview'
 }

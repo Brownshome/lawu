@@ -1,0 +1,20 @@
+/*
+ * Copyright James Brown 2024
+ * Author: James Brown
+ */
+
+plugins {
+	id 'groovy-gradle-plugin'
+}
+
+repositories {
+	gradlePluginPortal()
+}
+
+dependencies {
+	implementation('gradle.plugin.com.github.mrsarm:jshell-plugin') {
+		version {
+			strictly '[1.2, 1.3)'
+		}
+	}
+}
