@@ -19,23 +19,23 @@ public final class DebugUtilsExtension implements VulkanHandle {
 	private final PFN_vkDestroyDebugUtilsMessengerEXT destroyDebugUtilsMessenger;
 
 	public static DebugUtilsExtension extend(VulkanInstance instance) {
-		return new DebugUtilsExtension(instance.handle(), instance.allocator(), instance.instanceFunctionLookup());
+		return new DebugUtilsExtension(instance.handle(), instance.allocator(), instance.arena(), instance.instanceFunctionLookup());
 	}
 
 	public static String extensionName() {
 		return "VK_EXT_debug_utils";
 	}
 
-	public DebugUtilsExtension(MemorySegment handle, MemorySegment allocator, InstanceFunctionLookup lookup) {
+	public DebugUtilsExtension(MemorySegment handle, MemorySegment allocator, Arena arena, InstanceFunctionLookup lookup) {
 		this.handle = handle;
 		this.allocator = allocator;
 
 		createDebugUtilsMessenger = lookup.lookup("vkCreateDebugUtilsMessengerEXT")
-				.map(address -> PFN_vkCreateDebugUtilsMessengerEXT.ofAddress(address, Arena.global()))
+				.map(address -> PFN_vkCreateDebugUtilsMessengerEXT.ofAddress(address, arena))
 				.orElseThrow();
 
 		destroyDebugUtilsMessenger = lookup.lookup("vkDestroyDebugUtilsMessengerEXT")
-				.map(address -> PFN_vkDestroyDebugUtilsMessengerEXT.ofAddress(address, Arena.global()))
+				.map(address -> PFN_vkDestroyDebugUtilsMessengerEXT.ofAddress(address, arena))
 				.orElseThrow();
 	}
 

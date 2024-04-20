@@ -14,6 +14,10 @@ jobs:
       JEXTRACT_URL: https://download.java.net/java/early_access/jextract/21/1/openjdk-21-jextract+1-2_linux-x64_bin.tar.gz
 
     steps:
+      - name: Update APT
+        run: |
+          sudo apt update
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
