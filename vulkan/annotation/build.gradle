@@ -1,0 +1,10 @@
+/*
+ * Copyright James Brown 2024
+ * Author: James Brown
+ */
+
+plugins {
+	id 'dev.brownjames.lawu.java-library'
+}
+
+version '0.1.0-SNAPSHOT'

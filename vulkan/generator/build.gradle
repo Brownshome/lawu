@@ -1,0 +1,36 @@
+/*
+ * Copyright James Brown 2024
+ * Author: James Brown
+ */
+
+plugins {
+	id 'dev.brownjames.lawu.java-library'
+	id 'org.gradlex.extra-java-module-info' version '1.8'
+	id 'antlr'
+}
+
+version '0.1.0-SNAPSHOT'
+
+extraJavaModuleInfo {
+	deriveAutomaticModuleNamesFromFileNames = true
+}
+
+dependencies {
+	implementation projects.vulkan.annotation;
+
+	implementation('org.antlr:antlr4-runtime') {
+		version {
+			strictly '[4, 5)'
+		}
+	}
+
+	antlr('org.antlr:antlr4') {
+		version {
+			strictly '[4, 5)'
+		}
+	}
+}
+
+generateGrammarSource {
+	arguments += [ '-package', 'dev.brownjames.lawu.vulkan.generator', '-visitor' ]
+}

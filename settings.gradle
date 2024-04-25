@@ -7,3 +7,7 @@ rootProject.name = 'lawu'
 
 include 'glfw'
 include 'vulkan'
+include 'vulkan:annotation'
+include 'vulkan:generator'
+
+enableFeaturePreview('TYPESAFE_PROJECT_ACCESSORS')

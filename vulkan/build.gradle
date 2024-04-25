@@ -16,6 +16,9 @@ dependencies {
 			strictly '[2.1.0, 3)'
 		}
 	}
+
+	compileOnly         projects.vulkan.annotation
+	annotationProcessor projects.vulkan.generator
 }
 
 tasks.withType(JavaCompile).configureEach {
