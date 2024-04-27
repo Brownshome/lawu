@@ -12,6 +12,7 @@ module dev.brownjames.lawu.vulkan.generator {
 
 	requires org.antlr.antlr4.runtime;
 	requires antlr4;
+	requires com.ibm.icu;
 
 	provides javax.annotation.processing.Processor
 			with StructureGenerator;

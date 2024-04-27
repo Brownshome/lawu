@@ -1,18 +1,12 @@
 package dev.brownjames.lawu.vulkan.generator.structure;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
+import java.util.stream.Stream;
 
 import javax.annotation.processing.ProcessingEnvironment;
-import javax.lang.model.element.Modifier;
-import javax.lang.model.element.PackageElement;
-import javax.lang.model.element.TypeElement;
-import javax.lang.model.element.VariableElement;
+import javax.lang.model.element.*;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
-import javax.lang.model.util.ElementFilter;
 
 import dev.brownjames.lawu.vulkan.generator.ElementLookup;
 
@@ -24,6 +18,9 @@ final class GenerationContext {
 	private final ElementLookup lookup;
 
 	private TypeElement vulkanHeader;
+	private Map<String, VariableElement> vulkanHeaderFields;
+	private Map<String, ExecutableElement> vulkanHeaderMethods;
+
 	private final Map<String, NameMapping> mappings;
 
 	GenerationContext(ProcessingEnvironment processingEnvironment, ElementLookup lookup) {
@@ -60,6 +57,30 @@ final class GenerationContext {
 		}
 
 		this.vulkanHeader = vulkanHeaderElement;
+		vulkanHeaderFields = new HashMap<>();
+		vulkanHeaderMethods = new HashMap<>();
+
+		for (var e : processingEnvironment.getElementUtils().getAllMembers(this.vulkanHeader)) {
+			if (!e.getModifiers().containsAll(List.of(Modifier.PUBLIC, Modifier.STATIC))) {
+				continue;
+			}
+
+			switch (e) {
+				case VariableElement variable
+						when e.getKind() == ElementKind.FIELD -> {
+					if (vulkanHeaderFields.put(e.getSimpleName().toString(), variable) != null) {
+						throw new IllegalStateException(STR."Duplicate header fields found for \{e.getSimpleName()}");
+					}
+				}
+				case ExecutableElement executable
+						when e.getKind() == ElementKind.METHOD && executable.getParameters().isEmpty() -> {
+					if (vulkanHeaderMethods.put(e.getSimpleName().toString(), executable) != null) {
+						throw new IllegalStateException(STR."Duplicate header methods found for \{e.getSimpleName()}");
+					}
+				}
+				default -> { }
+			}
+		}
 	}
 
 	void addMapping(CharSequence target, TypeElement mapping) throws IllegalStateException {
@@ -67,29 +88,64 @@ final class GenerationContext {
 
 		var oldMapping = mappings.remove(targetString);
 		switch (oldMapping) {
-			case GenerationRequest request -> mappings.put(targetString, new ReplacementMapping(request.target(), mapping));
-			case ExistingMapping existingMapping -> throw new IllegalStateException(STR."Duplicate mappings defined for \{targetString}, \{mapping}, and \{existingMapping.mapping()}");
+			case StructureGenerationRequest request -> {
+				mappings.put(targetString, new ReplacementMapping(request.target(), mapping));
+				processingEnvironment.getMessager().printNote(STR."Skipping generating \{request.qualifiedName()} as \{target} has been mapped to \{mapping}", mapping);
+			}
+			case FunctionPointerMapping functionPointerMapping -> mappings.put(targetString, new ReplacementMapping(functionPointerMapping.target(), mapping));
+			case BitFlagGenerationRequest bitFlagGenerationRequest -> {
+				mappings.put(targetString, new NewMapping(bitFlagGenerationRequest.target(), mapping));
+				processingEnvironment.getMessager().printNote(STR."Skipping generating \{bitFlagGenerationRequest.qualifiedName()} as \{target} has been mapped to \{mapping}", mapping);
+			}
 			case null -> mappings.put(targetString, new NewMapping(target, mapping));
+			default -> throw new IllegalStateException(STR."Duplicate mappings defined for \{targetString}, \{mapping}, and \{oldMapping.qualifiedName()}");
+		}
+	}
+
+	void addFunctionPointer(TypeElement target) {
+		var targetString = target.getSimpleName().toString();
+
+		var oldMapping = mappings.remove(targetString);
+		switch (oldMapping) {
+			case NewMapping newMapping -> mappings.put(targetString, new ReplacementMapping(target, newMapping.mapping()));
+			case null -> mappings.put(targetString, new FunctionPointerMapping(target));
+			default -> throw new IllegalStateException(STR."Both \{oldMapping.target()} and \{target} have the same name, \{target.getSimpleName()}");
 		}
 	}
 
 	void addGenerationRequest(TypeElement target, PackageElement destination, CharSequence newName) throws IllegalStateException {
 		var targetString = target.getSimpleName().toString();
 
-		checkForAndAddExistingMapping(target, destination, newName);
+		checkForAndAddExistingMapping(target.getSimpleName(), destination, newName);
 
 		var oldMapping = mappings.remove(targetString);
 		switch (oldMapping) {
-			case TargetedMapping targetedMapping -> throw new IllegalStateException(STR."Both \{targetedMapping.target()} and \{target} have the same name, \{target.getSimpleName()}");
 			case NewMapping newMapping -> {
 				mappings.put(targetString, new ReplacementMapping(target, newMapping.mapping()));
 				processingEnvironment.getMessager().printNote(STR."Skipping generating \{destination}.\{newName} as \{target} has been mapped to \{newMapping.mapping()}", newMapping.mapping());
 			}
-			case null -> mappings.put(targetString, new GenerationRequest(target, destination, newName));
+			case null -> mappings.put(targetString, new StructureGenerationRequest(target, destination, newName));
+			default -> throw new IllegalStateException(STR."Both \{oldMapping.target()} and \{target} have the same name, \{target.getSimpleName()}");
 		}
 	}
 
-	private void checkForAndAddExistingMapping(TypeElement target, PackageElement destination, CharSequence newName) {
+	void addBitFlagGenerationRequest(CharSequence target, List<ExecutableElement> flags, PackageElement destination, CharSequence newName) {
+		var targetString = target.toString();
+
+		checkForAndAddExistingMapping(target, destination, newName);
+
+		var oldMapping = mappings.remove(targetString);
+		switch (oldMapping) {
+			case NewMapping newMapping -> {
+				mappings.put(targetString, newMapping);
+				processingEnvironment.getMessager().printNote(STR."Skipping generating \{destination}.\{newName} as \{target} has been mapped to \{newMapping.mapping()}", newMapping.mapping());
+			}
+			case null -> mappings.put(targetString, new BitFlagGenerationRequest(target, flags, destination, newName));
+			default -> throw new IllegalStateException(STR."Both \{oldMapping.target()} and \{target} has two mappings");
+		}
+	}
+
+	private void checkForAndAddExistingMapping(CharSequence target, PackageElement destination, CharSequence newName) {
 		var qualifiedName = STR."\{destination}.\{newName}";
 		var module = processingEnvironment.getElementUtils().getModuleOf(destination);
 		TypeElement existingElement = module == null
@@ -97,16 +153,36 @@ final class GenerationContext {
 				: processingEnvironment.getElementUtils().getTypeElement(module, qualifiedName);
 
 		if (existingElement != null) {
-			addMapping(target.getSimpleName(), existingElement);
+			addMapping(target, existingElement);
 		}
 	}
 
-	public Iterable<GenerationRequest> generationRequests() {
-		return () -> mappings.values().stream().<GenerationRequest>mapMulti((nameMapping, objectConsumer) -> {
-			if (nameMapping instanceof GenerationRequest request) {
-				objectConsumer.accept(request);
+	public Collection<StructureGenerationRequest> structureGenerationRequests() {
+		return mappings.values().stream().<StructureGenerationRequest>mapMulti((nameMapping, consumer) -> {
+			if (nameMapping instanceof StructureGenerationRequest request) {
+				consumer.accept(request);
 			}
-		}).iterator();
+		}).toList();
+	}
+
+	public Collection<BitFlagGenerationRequest> bitFlagGenerationRequests() {
+		return mappings.values().stream().<BitFlagGenerationRequest>mapMulti((nameMapping, consumer) -> {
+			if (nameMapping instanceof BitFlagGenerationRequest request) {
+				consumer.accept(request);
+			}
+		}).toList();
+	}
+
+	public Stream<ExecutableElement> coreBitFlags() {
+		if (vulkanHeader == null) {
+			return Stream.empty();
+		}
+
+		return vulkanHeaderMethods.values().stream()
+				.filter(m -> {
+					var name = m.getSimpleName().toString();
+					return name.startsWith("VK_") && name.endsWith("_BIT");
+				});
 	}
 
 	public Optional<NameMapping> mapping(CharSequence name) {
@@ -118,19 +194,6 @@ final class GenerationContext {
 			throw new IllegalStateException("No vulkan header specified");
 		}
 
-		var fields = ElementFilter.fieldsIn(processingEnvironment.getElementUtils().getAllMembers(vulkanHeader)).stream()
-				.filter(field -> field.getModifiers().containsAll(List.of(Modifier.PUBLIC, Modifier.STATIC))
-						&& field.getSimpleName().contentEquals(type))
-				.toList();
-
-		if (fields.isEmpty()) {
-			return Optional.empty();
-		}
-
-		if (fields.size() > 1) {
-			throw new RuntimeException(STR."Multiple layout fields for \{type}");
-		}
-
-		return Optional.of(fields.getFirst());
+		return Optional.ofNullable(vulkanHeaderFields.get(type.toString()));
 	}
 }

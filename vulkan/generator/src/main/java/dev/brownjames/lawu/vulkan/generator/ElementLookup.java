@@ -19,7 +19,8 @@ public record ElementLookup(
 		Optional<TypeElement> memorySegment,
 		Optional<TypeElement> string,
 		Optional<TypeElement> valueLayout,
-		Optional<TypeElement> addressLayout
+		Optional<TypeElement> addressLayout,
+		Optional<TypeElement> bitFlag
 ) {
 	public static ElementLookup lookupElements(ProcessingEnvironment processingEnvironment) {
 		return new ElementLookup(
@@ -29,7 +30,17 @@ public record ElementLookup(
 				lookupElement(MemorySegment.class, processingEnvironment),
 				lookupElement(String.class, processingEnvironment),
 				lookupElement(ValueLayout.class, processingEnvironment),
-				lookupElement(AddressLayout.class, processingEnvironment));
+				lookupElement(AddressLayout.class, processingEnvironment),
+				lookupElement("dev.brownjames.lawu.vulkan", "dev.brownjames.lawu.vulkan.BitFlag", processingEnvironment));
+	}
+
+	private static Optional<TypeElement> lookupElement(CharSequence moduleName, CharSequence typeName, ProcessingEnvironment processingEnvironment) {
+		var module = processingEnvironment.getElementUtils().getModuleElement(moduleName);
+		if (module != null) {
+			return Optional.ofNullable(processingEnvironment.getElementUtils().getTypeElement(module, typeName));
+		}
+
+		return Optional.ofNullable(processingEnvironment.getElementUtils().getTypeElement(typeName));
 	}
 
 	private static Optional<TypeElement> lookupElement(Class<?> type, ProcessingEnvironment processingEnvironment) {

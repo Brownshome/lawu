@@ -7,6 +7,8 @@ package dev.brownjames.lawu.vulkan.generator.structure;
 
 import java.io.IOException;
 import java.lang.foreign.*;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -20,11 +22,16 @@ import javax.lang.model.element.*;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.ElementFilter;
 
+import com.ibm.icu.number.NumberFormatter;
+import com.ibm.icu.text.NumberFormat;
+import com.ibm.icu.text.RuleBasedNumberFormat;
 import dev.brownjames.lawu.vulkan.annotation.GenerateCoreStructuresFrom;
 import dev.brownjames.lawu.vulkan.annotation.MapStructure;
 
 import dev.brownjames.lawu.vulkan.generator.ElementLookup;
 import dev.brownjames.lawu.vulkan.generator.GenerationFailedException;
+
+import static java.lang.StringTemplate.RAW;
 
 /**
  * Processes vulkan sources to generate structure wrappers
@@ -32,7 +39,11 @@ import dev.brownjames.lawu.vulkan.generator.GenerationFailedException;
 @SupportedAnnotationTypes("dev.brownjames.lawu.vulkan.annotation/dev.brownjames.lawu.vulkan.annotation.*")
 @SupportedSourceVersion(SourceVersion.RELEASE_21)
 public final class StructureGenerator extends AbstractProcessor {
+	private static final String VULKAN_FUNCTION_POINTER_PREFIX = "PFN_vk";
 	private static final String VULKAN_PREFIX = "Vk";
+	private static final ScopedValue<GenerationContext> CONTEXT = ScopedValue.newInstance();
+	private static final String BIT_FLAG_SUFFIX = "Flags";
+	private static final NumberFormat SPELL_OUT_FORMATTER = new RuleBasedNumberFormat(RuleBasedNumberFormat.SPELLOUT);
 
 	private ElementLookup elements;
 
@@ -52,18 +63,66 @@ public final class StructureGenerator extends AbstractProcessor {
 		return true;
 	}
 
+	/**
+	 * Gets the current context object for generation
+	 * @return the context object
+	 */
+	static GenerationContext getContext() {
+		return CONTEXT.get();
+	}
+
 	private void generateCoreStructuresFromPackages(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
-		var context = getGenerationContext(annotations, roundEnv);
-		for (var generationRequest : context.generationRequests()) {
-			try {
-				generateStructure(generationRequest, context);
-			} catch (GenerationFailedException e) {
-				e.raise(processingEnv);
+		ScopedValue.where(CONTEXT, makeGenerationContext(annotations, roundEnv))
+				.run(() -> {
+					for (var generationRequest : getContext().structureGenerationRequests()) {
+						try {
+							generateStructure(generationRequest);
+						} catch (GenerationFailedException e) {
+							e.raise(processingEnv);
+						}
+					}
+
+					for (var generationRequest : getContext().bitFlagGenerationRequests()) {
+						try {
+							generateBitFlags(generationRequest);
+						} catch (GenerationFailedException e) {
+							e.raise(processingEnv);
+						}
+					}
+				});
+	}
+
+	private void addBitFlagGenerationRequests(PackageElement destination) {
+		var context = getContext();
+
+		var bitFlagMaps = context.coreBitFlags().collect(Collectors.groupingBy(executableElement -> {
+			// Get snippets
+			var comment = processingEnv.getElementUtils().getDocComment(executableElement);
+			var names = CommentParser.extractSnippets(comment)
+					.map(CharSequence::toString)
+					.map(snippet -> {
+						var end = snippet.indexOf(STR."FlagBits.\{executableElement.getSimpleName()}");
+						if (end == -1) {
+							throw new GenerationFailedException("Unable to find enum type", executableElement).unchecked();
+						}
+
+						var start = snippet.lastIndexOf(' ', end) + 1;
+						return STR."\{snippet.substring(start, end)}Flags";
+					}).toList();
+
+			if (names.size() != 1) {
+				throw new GenerationFailedException("Unable to find enum type", executableElement).unchecked();
 			}
+
+			return names.getFirst();
+		}));
+
+		for (var entry : bitFlagMaps.entrySet()) {
+			context.addBitFlagGenerationRequest(entry.getKey(), entry.getValue(), destination, convertBitFlagsName(entry.getKey()));
 		}
 	}
 
-	private GenerationContext getGenerationContext(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
+	private GenerationContext makeGenerationContext(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
 		var result = new GenerationContext(processingEnv, elements);
 
 		elements.mapStructureAnnotation().filter(annotations::contains).ifPresent(mapAnnotation -> {
@@ -107,6 +166,7 @@ public final class StructureGenerator extends AbstractProcessor {
 							}
 
 							result.addHeader(type);
+							ScopedValue.runWhere(CONTEXT, result, () -> addBitFlagGenerationRequests(annotatedPackage));
 						} catch (IllegalStateException | IllegalArgumentException e) {
 							processingEnv.getMessager().printError(e.getMessage(), annotatedElement);
 						}
@@ -126,12 +186,14 @@ public final class StructureGenerator extends AbstractProcessor {
 					var targetPackage = processingEnv.getElementUtils().getPackageElement(annotation.value());
 
 					for (var type : ElementFilter.typesIn(targetPackage.getEnclosedElements())) {
-						if (isVulkanCoreName(type.getSimpleName())) {
-							try {
-								result.addGenerationRequest(type, annotatedPackage, convertName(type.getSimpleName()));
-							} catch (IllegalStateException ise) {
-								processingEnv.getMessager().printError(ise.getMessage(), annotatedElement);
+						try {
+							if (isVulkanCoreName(type.getSimpleName())) {
+								result.addGenerationRequest(type, annotatedPackage, convertStructureName(type.getSimpleName()));
+							} else if (isCoreVulkanFunctionPointerName(type.getSimpleName())) {
+								result.addFunctionPointer(type);
 							}
+						} catch (IllegalStateException ise) {
+							processingEnv.getMessager().printError(ise.getMessage(), annotatedElement);
 						}
 					}
 				}
@@ -145,6 +207,14 @@ public final class StructureGenerator extends AbstractProcessor {
 		return isVulkanName(name) && !isExtensionName(name);
 	}
 
+	private boolean isCoreVulkanFunctionPointerName(CharSequence name) {
+		return isFunctionPointerName(name) && !isExtensionName(name);
+	}
+
+	private boolean isFunctionPointerName(CharSequence name) {
+		return name.toString().startsWith(VULKAN_FUNCTION_POINTER_PREFIX);
+	}
+
 	private boolean isExtensionName(CharSequence name) {
 		return Character.isUpperCase(name.charAt(name.length() - 1)) && Character.isUpperCase(name.charAt(name.length() - 2));
 	}
@@ -153,13 +223,11 @@ public final class StructureGenerator extends AbstractProcessor {
 		return name.toString().startsWith(VULKAN_PREFIX);
 	}
 
-	private CharSequence convertName(CharSequence nativeName) {
+	private CharSequence convertStructureName(CharSequence nativeName) {
 		var result = new StringBuilder(nativeName);
 
 		// Remove the prefix
-		if (result.subSequence(0, VULKAN_PREFIX.length()).equals(VULKAN_PREFIX)) {
-			result.delete(0, VULKAN_PREFIX.length());
-		}
+		removePrefix(result, VULKAN_PREFIX);
 
 		// Replace 3D and 2D
 		record Replacement(String value, String replacement) {
@@ -177,14 +245,120 @@ public final class StructureGenerator extends AbstractProcessor {
 		).forEach(r -> r.execute(result));
 
 		// Remove extension suffixes
-		while (Character.isUpperCase(result.charAt(result.length() - 1))) {
-			result.deleteCharAt(result.length() - 1);
-		}
+		removeExtensionSuffixes(result);
 
 		return result;
 	}
 
-	private void generateStructure(GenerationRequest request, GenerationContext context) throws GenerationFailedException {
+	private CharSequence convertBitFlagsName(CharSequence nativeName) {
+		var result = new StringBuilder(nativeName);
+
+		removeExtensionSuffixes(result);
+
+		removePrefix(result, VULKAN_PREFIX);
+		removeSuffix(result, BIT_FLAG_SUFFIX);
+		result.append("Flag");
+
+		return result;
+	}
+
+	private static void removeSuffix(StringBuilder builder, String suffix) {
+		removeIfMatched(builder, suffix, builder.length() - suffix.length(), builder.length());
+	}
+
+	private static void removePrefix(StringBuilder builder, String prefix) {
+		removeIfMatched(builder, prefix, 0, prefix.length());
+	}
+
+	private static void removeIfMatched(StringBuilder builder, String match, int start, int end) {
+		if (match.contentEquals(builder.subSequence(start, end))) {
+			builder.delete(start, end);
+		}
+	}
+
+	private static void removeExtensionSuffixes(StringBuilder result) {
+		// Remove extension suffixes
+		while (Character.isUpperCase(result.charAt(result.length() - 1))) {
+			result.deleteCharAt(result.length() - 1);
+		}
+	}
+
+	@FunctionalInterface
+	private interface Generator {
+		record Generated() { }
+
+		void generate(GenerationRequest request, Stream<? extends CharSequence> importStatements) throws GenerationFailedException;
+	}
+
+	private static final StringTemplate.Processor<Generator, RuntimeException> GENERATOR = stringTemplate -> (request, importStatements) -> {
+		var importGroups = List.of(
+				Pattern.compile("java\\..*"),
+				Pattern.compile("javax\\..*"));
+
+		// Add generator if required
+		if (stringTemplate.values().contains(new Generator.Generated())) {
+			importStatements = Stream.concat(importStatements, Stream.of(Generated.class.getCanonicalName()));
+		}
+
+		Map<Integer, List<CharSequence>> imports = importStatements
+				.map(CharSequence::toString)
+				.sorted()
+				.distinct()
+				.collect(Collectors.groupingBy(charSequence -> {
+					for (int i = 0; i < importGroups.size(); i++) {
+						if (importGroups.get(i).matcher(charSequence).matches()) {
+							return i;
+						}
+					}
+
+					return importGroups.size();
+				}));
+
+		StringBuilder combinedImports = new StringBuilder();
+		for (int i = 0; i <= importGroups.size(); i++) {
+			var importGroup = imports.getOrDefault(i, Collections.emptyList());
+			if (importGroup.isEmpty()) {
+				continue;
+			}
+
+			combinedImports.append('\n');
+			for (var importStatement : importGroup) {
+				combinedImports.append("import ");
+				combinedImports.append(importStatement);
+				combinedImports.append(";\n");
+			}
+		}
+
+		var header =
+				RAW."""
+				package \{request.destination()};
+				\{combinedImports}
+				""";
+
+		var values = new ArrayList<>(stringTemplate.values());
+		for (var iterator = values.listIterator(); iterator.hasNext(); ) {
+			switch (iterator.next()) {
+				case Generator.Generated _ -> iterator.set(
+						STR."""
+						@Generated(
+								value = "\{StructureGenerator.class.getName()}",
+								date = "\{DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(OffsetDateTime.now())}",
+								comments = "Generated from \{request.target()}")"""
+				);
+				default -> { }
+			}
+		}
+
+		var result = StringTemplate.combine(header, StringTemplate.of(stringTemplate.fragments(), values)).interpolate();
+
+		try (var destination = CONTEXT.get().processingEnvironment().getFiler().createSourceFile(request.qualifiedName(), request.owner()).openWriter()) {
+			destination.write(result);
+		} catch (IOException e) {
+			throw new GenerationFailedException(STR."Unable to write out file: \{e}", request.owner(), e);
+		}
+	};
+
+	private void generateStructure(StructureGenerationRequest request) throws GenerationFailedException {
 		var comment = processingEnv.getElementUtils().getDocComment(request.target());
 
 		var parsedDeclaration = parseComment(request, comment);
@@ -199,11 +373,7 @@ public final class StructureGenerator extends AbstractProcessor {
 		var bindingInformationMap = getBindingInformationMap(request);
 
 		// Combine these with the native information
-		var members = getStructureMembers(context, request, structDeclaration, bindingInformationMap);
-
-		var importGroups = List.of(
-				Pattern.compile("java\\..*"),
-				Pattern.compile("javax\\..*"));
+		var members = getStructureMembers(request, structDeclaration, bindingInformationMap);
 
 		var memberImports = members.stream()
 				.flatMap(structureMember -> structureMember.imports(request).stream());
@@ -215,76 +385,153 @@ public final class StructureGenerator extends AbstractProcessor {
 				Generated.class.getCanonicalName()
 		);
 
-		Map<Integer, List<CharSequence>> imports = Stream.concat(memberImports, requiredImports)
-				.map(CharSequence::toString)
-				.sorted()
-				.distinct()
-				.collect(Collectors.groupingBy(charSequence -> {
-					for (int i = 0; i < importGroups.size(); i++) {
-						if (importGroups.get(i).matcher(charSequence).matches()) {
-							return i;
-						}
-					}
+		Stream<CharSequence> imports = Stream.concat(memberImports, requiredImports);
 
-					return importGroups.size();
-				}));
-
-		StringBuilder importStatements = new StringBuilder();
-		for (int i = 0; i <= importGroups.size(); i++) {
-			var importGroup = imports.getOrDefault(i, Collections.emptyList());
-			if (importGroup.isEmpty()) {
-				continue;
-			}
-
-			importStatements.append('\n');
-			for (var importStatement : importGroup) {
-				importStatements.append("import ");
-				importStatements.append(importStatement);
-				importStatements.append(";\n");
-			}
-		}
-
-		var result =
+		var ofDeclaration =
 				STR."""
-				package \{request.destination()};
-				\{importStatements}
-
-				/**
-				 * \{comment.trim().replace("\n", "\n * ")}
-				 */
-				@Generated(
-						value = "\{StructureGenerator.class.getName()}",
-						date = "\{DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(OffsetDateTime.now())}",
-						comments = "Generated from \{request.target()}")
-				public record \{request.name()}(\{members.stream().map(StructureMember::declaration).collect(Collectors.joining(", "))}) {
+					/**
+					 * Creates an instance of this structure from a given memory segment.
+					 * All data is copied, and the memory segment does not need to be kept alive.
+					 *
+					 * @param raw the memory segment to copy from
+					 *
+					 * @return an instance of this structure
+					 */
 					public static \{request.name()} of(MemorySegment raw) {
 						return new \{request.name()}(\{members.stream().map(m -> m.of(request, "raw")).collect(Collectors.joining(",\n\t\t\t\t"))});
 					}
+				""";
 
+		var asNativeDeclarations = List.of(
+				STR."""
+					/**
+					 * Copies data from this structure into the given destination.
+					 *
+					 * @param destination the memory segment to copy data into
+					 */
 					public void asNative(MemorySegment destination) {
 						\{members.stream().map(m -> m.asNative(request, "destination")).collect(Collectors.joining("\n\t\t"))}
 					}
-
-					public MemorySegment asNative(SegmentAllocator arena) {
-						var raw = \{request.target().getSimpleName()}.allocate(arena);
+				""",
+				STR."""
+					/**
+					 * Creates a memory segment from this structure
+					 *
+					 * @param allocator the segment allocator to allocate from
+					 *
+					 * @return an allocated memory-segment
+					 */
+					public MemorySegment asNative(SegmentAllocator allocator) {
+						var raw = \{request.target().getSimpleName()}.allocate(allocator);
 						asNative(raw);
 						return raw;
 					}
-
+				""",
+				"""
+					/**
+					 * Creates a memory segment from this structure allocated from an auto arena
+					 *
+					 * @return an allocated memory segment
+					 */
 					public MemorySegment asNative() {
 						return asNative(Arena.ofAuto());
 					}
-				}
-				""";
+				""");
 
-		try (var destination = processingEnv.getFiler().createSourceFile(request.qualifiedName(), request.target()).openWriter()) {
-			destination.write(result);
-		} catch (IOException e) {
-			throw new GenerationFailedException(STR."Unable to write out file: \{e}", request.target(), e);
-		}
+		var declarations = new ArrayList<CharSequence>();
+		declarations.add(ofDeclaration);
+		declarations.addAll(asNativeDeclarations);
+
+		members.forEach(m -> declarations.addAll(m.extraDeclarations()));
+
+		GENERATOR."""
+		/**
+		 * \{comment.trim().replace("\n", "\n * ")}
+		 */
+		\{new Generator.Generated()}
+		public record \{request.name()}(\{members.stream().map(StructureMember::declaration).collect(Collectors.joining(", "))}) {\{declarations.stream().collect(Collectors.joining("\n", "\n", "\n"))}}
+		""".generate(request, imports);
 	}
 
-	private static ArrayList<StructureMember> getStructureMembers(GenerationContext context, GenerationRequest request, CommentParser.ParsedStructOrUnion structDeclaration, Map<String, StructureMember.BindingInformation> bindingInformationMap) throws GenerationFailedException {
+	private void generateBitFlags(BitFlagGenerationRequest generationRequest) throws GenerationFailedException {
+		var imports = new ArrayList<CharSequence>();
+
+		imports.add(elements.bitFlag()
+				.orElseThrow(() -> new GenerationFailedException("No BitFlag type found", generationRequest.destination()))
+				.getQualifiedName());
+
+		// Extract the flag prefix
+		var flagPrefix = new StringBuilder(generationRequest.name());
+		for (var i = 1; i < flagPrefix.length(); i++) {
+			char c = flagPrefix.charAt(i);
+			flagPrefix.setCharAt(i, Character.toUpperCase(c));
+
+			if (Character.isUpperCase(c)) {
+				flagPrefix.insert(i, '_');
+				i++;
+			}
+		}
+		removeSuffix(flagPrefix, "FLAG");
+		flagPrefix.insert(0, "VK_");
+
+		StringBuilder flags = new StringBuilder();
+		for (var flag : generationRequest.flags()) {
+			var nativeName = flag.getSimpleName();
+			var enclosing = flag.getEnclosingElement();
+
+			var name = new StringBuilder(nativeName);
+			removeSuffix(name, "_BIT");
+			removePrefix(name, flagPrefix.toString());
+			if (Character.isDigit(name.charAt(0))) {
+				var startingNumberLength = (int) name.chars()
+						.takeWhile(Character::isDigit)
+						.count();
+				var startingNumber = name.substring(0, startingNumberLength);
+
+				var replacement = SPELL_OUT_FORMATTER.format(new BigInteger(startingNumber)).replaceAll("[ -]", "_").toUpperCase();
+
+				if (name.length() > startingNumberLength) {
+					char firstCharAfterReplacement = name.charAt(startingNumberLength);
+					if (firstCharAfterReplacement == 'D') {
+						name.replace(startingNumberLength, startingNumberLength + 1, "_DIMENSIONAL");
+					} else if (firstCharAfterReplacement != '_') {
+						name.insert(startingNumberLength, '_');
+					}
+				}
+
+				name.replace(0, startingNumberLength, replacement);
+			}
+
+			if (!enclosing.getKind().isDeclaredType() || !(enclosing instanceof TypeElement enclosingType)) {
+				throw new GenerationFailedException(STR."\{flag.getSimpleName()} is not enclosed in a type", flag);
+			}
+
+			imports.add(enclosingType.getQualifiedName());
+			flags.append(STR."\t\{name}(\{enclosing.getSimpleName()}.\{nativeName}()),\n");
+		}
+
+		flags.replace(flags.length() - 2, flags.length(), ";");
+
+		GENERATOR."""
+		\{new Generator.Generated()}
+		public enum \{generationRequest.name()} implements BitFlag {
+		\{flags}
+
+			private final int bit;
+
+			\{generationRequest.name()}(int bit) {
+				this.bit = bit;
+			}
+
+			@Override
+			public int bit() {
+				return bit;
+			}
+		}
+		""".generate(generationRequest, imports.stream());
+	}
+
+	private static ArrayList<StructureMember> getStructureMembers(StructureGenerationRequest request, CommentParser.ParsedStructOrUnion structDeclaration, Map<String, StructureMember.BindingInformation> bindingInformationMap) throws GenerationFailedException {
 		var members = new ArrayList<StructureMember>();
 		for (var member : structDeclaration.members()) {
 			var bindingInformation = bindingInformationMap.remove(member.name().toString());
@@ -292,7 +539,7 @@ public final class StructureGenerator extends AbstractProcessor {
 				throw new GenerationFailedException(STR."No getter or slice methods found for \{member.name()}", request.target());
 			}
 
-			members.add(StructureMember.createStructureMember(context, bindingInformation, member));
+			members.add(StructureMember.createStructureMember(bindingInformation, member));
 		}
 
 		for (var entry : bindingInformationMap.entrySet()) {
@@ -301,7 +548,7 @@ public final class StructureGenerator extends AbstractProcessor {
 		return members;
 	}
 
-	private Map<String, StructureMember.BindingInformation> getBindingInformationMap(GenerationRequest request) throws GenerationFailedException {
+	private Map<String, StructureMember.BindingInformation> getBindingInformationMap(StructureGenerationRequest request) throws GenerationFailedException {
 		var memorySegmentType = elements.memorySegment()
 				.map(TypeElement::asType)
 				.orElseThrow(() -> new GenerationFailedException(STR."Unable to find \{MemorySegment.class.getName()}", request.target()));
@@ -340,7 +587,7 @@ public final class StructureGenerator extends AbstractProcessor {
 		return result;
 	}
 
-	private CommentParser.ParsedDeclaration parseComment(GenerationRequest request, CharSequence comment) throws GenerationFailedException {
+	private CommentParser.ParsedDeclaration parseComment(StructureGenerationRequest request, CharSequence comment) throws GenerationFailedException {
 		// Parse the snippet
 		Stream<CommentParser.ParsedDeclaration> commentDeclarations;
 		try {

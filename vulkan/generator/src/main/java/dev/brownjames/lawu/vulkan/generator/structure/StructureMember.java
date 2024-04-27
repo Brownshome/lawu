@@ -38,6 +38,14 @@ interface StructureMember {
 	}
 
 	/**
+	 * A list of extra declarations
+	 * @return a list of extra declarations
+	 */
+	default List<? extends CharSequence> extraDeclarations() {
+		return Collections.emptyList();
+	}
+
+	/**
 	 * Information about a Java method linking native memory and a raw Java-type
 	 * @param bindingMethod the method
 	 * @param getterStyle the style of the method
@@ -62,16 +70,25 @@ interface StructureMember {
 
 	/**
 	 * Creates a suitable structure member for the given binding and C++ information
-	 * @param context the context that generation is taking place in
+	 *
 	 * @param bindingInformation the Java-binding information
-	 * @param cppMember the C++ information
+	 * @param cppMember          the C++ information
 	 * @return a suitable structure member
 	 */
-	static StructureMember createStructureMember(GenerationContext context, BindingInformation bindingInformation, CommentParser.StructMember cppMember) throws GenerationFailedException {
+	static StructureMember createStructureMember(BindingInformation bindingInformation, CommentParser.StructMember cppMember) throws GenerationFailedException {
+		var context = StructureGenerator.getContext();
+
 		return switch (cppMember.declarator()) {
+			case CommentParser.Value _ when context.mapping(cppMember.type().toString()).orElse(null) instanceof FunctionPointerMapping mapping ->
+				new FunctionPointerMember(cppMember.name(), mapping.target());
+
 			// VkSomeMappedStruct someMappedStruct;
 			case CommentParser.Value _ when context.mapping(cppMember.type().toString()).orElse(null) instanceof TargetedMapping mapping ->
 				new MappedConversionMember(cppMember.name(), mapping);
+
+			// VkSomeFlags flags;
+			case CommentParser.Value _ when context.mapping(cppMember.type().toString()).orElse(null) instanceof BitFlagGenerationRequest mapping ->
+				new BitFlagConversionMember(cppMember.name(), mapping);
 
 			// uint32_t aType;
 			case CommentParser.Value _ ->
@@ -192,7 +209,7 @@ interface StructureMember {
 	 * @param request the request object for this structure generation
 	 * @return a collection of import names
 	 */
-	default Collection<? extends CharSequence> imports(GenerationRequest request) {
+	default Collection<? extends CharSequence> imports(StructureGenerationRequest request) {
 		return importTypeName().map(List::of).orElse(Collections.emptyList());
 	}
 
@@ -202,7 +219,7 @@ interface StructureMember {
 	 * @param argument the name of the argument containing native memory
 	 * @return a code snippet
 	 */
-	CharSequence of(GenerationRequest request, CharSequence argument);
+	CharSequence of(StructureGenerationRequest request, CharSequence argument);
 
 	/**
 	 * Generates a snippet of code that writes this member's information into the given argument
@@ -210,7 +227,7 @@ interface StructureMember {
 	 * @param argument the name of the argument containing native memory
 	 * @return a code snippet
 	 */
-	CharSequence asNative(GenerationRequest request, CharSequence argument);
+	CharSequence asNative(StructureGenerationRequest request, CharSequence argument);
 
 	/**
 	 * A code snippet for this member's declaration

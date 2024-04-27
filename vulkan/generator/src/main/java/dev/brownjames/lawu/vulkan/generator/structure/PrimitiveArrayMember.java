@@ -31,12 +31,12 @@ record PrimitiveArrayMember(CharSequence name, TypeMirror type, VariableElement 
 	}
 
 	@Override
-	public CharSequence of(GenerationRequest request, CharSequence argument) {
+	public CharSequence of(StructureGenerationRequest request, CharSequence argument) {
 		return STR."\{slice(request, argument)}.toArray(\{typeContainingValueLayout().getSimpleName()}.\{valueLayout.getSimpleName()})";
 	}
 
 	@Override
-	public CharSequence asNative(GenerationRequest request, CharSequence argument) {
+	public CharSequence asNative(StructureGenerationRequest request, CharSequence argument) {
 		return STR."\{slice(request, argument)}.copyFrom(\{MemorySegment.class.getSimpleName()}.ofArray(\{name}));";
 	}
 
@@ -51,7 +51,7 @@ record PrimitiveArrayMember(CharSequence name, TypeMirror type, VariableElement 
 	}
 
 	@Override
-	public Collection<? extends CharSequence> imports(GenerationRequest request) {
+	public Collection<? extends CharSequence> imports(StructureGenerationRequest request) {
 		var result = new ArrayList<CharSequence>(SliceMember.super.imports(request));
 		result.add(MemorySegment.class.getCanonicalName());
 		result.add(typeContainingValueLayout().getQualifiedName());

@@ -64,12 +64,12 @@ interface ListMember extends SliceMember {
 	CharSequence of(String sliceArgument);
 
 	@Override
-	default CharSequence of(GenerationRequest request, CharSequence argument) {
+	default CharSequence of(StructureGenerationRequest request, CharSequence argument) {
 		return STR."\{slice(request, argument)}.elements(\{layoutExpression()}).map(\{name()}$slice -> \{of(STR."\{name()}$slice")}).toList()";
 	}
 
 	@Override
-	default CharSequence asNative(GenerationRequest request, CharSequence argument) {
+	default CharSequence asNative(StructureGenerationRequest request, CharSequence argument) {
 		return STR."""
 				var \{name()}$slices = \{Spliterators.class.getSimpleName()}.iterator(\{slice(request, argument)}.spliterator(\{layoutExpression()}));
 				var \{name()}$items = \{name()}.iterator();
@@ -87,7 +87,7 @@ interface ListMember extends SliceMember {
 	}
 
 	@Override
-	default Collection<? extends CharSequence> imports(GenerationRequest request) {
+	default Collection<? extends CharSequence> imports(StructureGenerationRequest request) {
 		var result = new ArrayList<CharSequence>(SliceMember.super.imports(request));
 
 		result.add(Spliterators.class.getCanonicalName());

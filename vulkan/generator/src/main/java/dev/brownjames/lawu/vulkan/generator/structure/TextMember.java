@@ -11,12 +11,12 @@ record TextMember(CharSequence name) implements ClassMember, SliceMember {
 	}
 
 	@Override
-	public CharSequence of(GenerationRequest request, CharSequence argument) {
+	public CharSequence of(StructureGenerationRequest request, CharSequence argument) {
 		return STR."\{slice(request, argument)}.getUtf8String(0L)";
 	}
 
 	@Override
-	public CharSequence asNative(GenerationRequest request, CharSequence argument) {
+	public CharSequence asNative(StructureGenerationRequest request, CharSequence argument) {
 		return STR."\{slice(request, argument)}.setUtf8String(0L, \{name});";
 	}
 }

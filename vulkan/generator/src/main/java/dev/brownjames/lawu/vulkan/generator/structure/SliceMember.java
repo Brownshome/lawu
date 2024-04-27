@@ -8,7 +8,7 @@ import java.util.Collection;
  */
 interface SliceMember extends StructureMember {
 	@Override
-	default Collection<? extends CharSequence> imports(GenerationRequest request) {
+	default Collection<? extends CharSequence> imports(StructureGenerationRequest request) {
 		var result = new ArrayList<CharSequence>(StructureMember.super.imports(request));
 		result.add(request.target().getQualifiedName());
 		return result;
@@ -26,7 +26,7 @@ interface SliceMember extends StructureMember {
 	 * @param argument the name of the argument representing the memory of the structure
 	 * @return code retrieving the slice
 	 */
-	default CharSequence slice(GenerationRequest request, CharSequence argument) {
+	default CharSequence slice(StructureGenerationRequest request, CharSequence argument) {
 		return STR."\{request.target().getSimpleName()}.\{name()}$slice(\{argument})";
 	}
 }

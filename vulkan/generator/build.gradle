@@ -24,6 +24,12 @@ dependencies {
 		}
 	}
 
+	implementation('com.ibm.icu:icu4j') {
+		version {
+			strictly '[75, 76)'
+		}
+	}
+
 	antlr('org.antlr:antlr4') {
 		version {
 			strictly '[4, 5)'

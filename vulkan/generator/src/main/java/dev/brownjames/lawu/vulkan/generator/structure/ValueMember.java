@@ -25,19 +25,19 @@ record ValueMember(CharSequence name, TypeMirror type, Optional<TypeElement> imp
 	}
 
 	@Override
-	public Collection<? extends CharSequence> imports(GenerationRequest request) {
+	public Collection<? extends CharSequence> imports(StructureGenerationRequest request) {
 		var result = new ArrayList<CharSequence>(StructureMember.super.imports(request));
 		result.add(request.target().getQualifiedName());
 		return result;
 	}
 
 	@Override
-	public CharSequence of(GenerationRequest request, CharSequence argument) {
+	public CharSequence of(StructureGenerationRequest request, CharSequence argument) {
 		return STR."\{request.target().getSimpleName()}.\{name}$get(\{argument})";
 	}
 
 	@Override
-	public CharSequence asNative(GenerationRequest request, CharSequence argument) {
+	public CharSequence asNative(StructureGenerationRequest request, CharSequence argument) {
 		return STR."\{request.target().getSimpleName()}.\{name}$set(\{argument}, \{name});";
 	}
 }

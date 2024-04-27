@@ -411,7 +411,7 @@ final class CommentParser {
 	 * @param comment the comment to parse
 	 * @return a stream of snippets
 	 */
-	private static Stream<CharSequence> extractSnippets(CharSequence comment) {
+	public static Stream<CharSequence> extractSnippets(CharSequence comment) {
 		return SNIPPET_PATTERN.matcher(comment).results().map(MatchResult::group);
 	}
 }

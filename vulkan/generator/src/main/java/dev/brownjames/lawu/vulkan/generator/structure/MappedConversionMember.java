@@ -19,12 +19,12 @@ record MappedConversionMember(CharSequence name, NameMapping mapping) implements
 	}
 
 	@Override
-	public CharSequence of(GenerationRequest request, CharSequence argument) {
+	public CharSequence of(StructureGenerationRequest request, CharSequence argument) {
 		return STR."\{mapping.name()}.of(\{slice(request, argument)})";
 	}
 
 	@Override
-	public CharSequence asNative(GenerationRequest request, CharSequence argument) {
+	public CharSequence asNative(StructureGenerationRequest request, CharSequence argument) {
 		return STR."\{name}.asNative(\{slice(request, argument)});";
 	}
 }

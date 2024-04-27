@@ -5,7 +5,7 @@ import javax.lang.model.element.TypeElement;
 /**
  * A mapping from a name to an existing type
  */
-sealed interface ExistingMapping extends NameMapping permits ReplacementMapping, NewMapping {
+sealed interface ExistingMapping extends NameMapping permits ReplacementMapping, NewMapping, FunctionPointerMapping {
 	/**
 	 * The existing type to map to
 	 * @return the type element for that type
