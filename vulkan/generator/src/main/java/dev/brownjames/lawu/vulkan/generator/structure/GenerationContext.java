@@ -93,9 +93,9 @@ final class GenerationContext {
 				processingEnvironment.getMessager().printNote(STR."Skipping generating \{request.qualifiedName()} as \{target} has been mapped to \{mapping}", mapping);
 			}
 			case FunctionPointerMapping functionPointerMapping -> mappings.put(targetString, new ReplacementMapping(functionPointerMapping.target(), mapping));
-			case BitFlagGenerationRequest bitFlagGenerationRequest -> {
-				mappings.put(targetString, new NewMapping(bitFlagGenerationRequest.target(), mapping));
-				processingEnvironment.getMessager().printNote(STR."Skipping generating \{bitFlagGenerationRequest.qualifiedName()} as \{target} has been mapped to \{mapping}", mapping);
+			case FlagGenerationRequest flagGenerationRequest -> {
+				mappings.put(targetString, new NewMapping(flagGenerationRequest.target(), mapping));
+				processingEnvironment.getMessager().printNote(STR."Skipping generating \{flagGenerationRequest.qualifiedName()} as \{target} has been mapped to \{mapping}", mapping);
 			}
 			case null -> mappings.put(targetString, new NewMapping(target, mapping));
 			default -> throw new IllegalStateException(STR."Duplicate mappings defined for \{targetString}, \{mapping}, and \{oldMapping.qualifiedName()}");
@@ -113,36 +113,43 @@ final class GenerationContext {
 		}
 	}
 
-	void addGenerationRequest(TypeElement target, PackageElement destination, CharSequence newName) throws IllegalStateException {
-		var targetString = target.getSimpleName().toString();
+	private void addGenerationRequest(GenerationRequest request) {
+		var targetString = switch (request.target()) {
+			case TypeElement element -> element.getSimpleName().toString();
+			case null, default -> request.target().toString();
+		};
 
-		checkForAndAddExistingMapping(target.getSimpleName(), destination, newName);
+		checkForAndAddExistingMapping(targetString, request.destination(), request.name());
 
 		var oldMapping = mappings.remove(targetString);
 		switch (oldMapping) {
 			case NewMapping newMapping -> {
-				mappings.put(targetString, new ReplacementMapping(target, newMapping.mapping()));
-				processingEnvironment.getMessager().printNote(STR."Skipping generating \{destination}.\{newName} as \{target} has been mapped to \{newMapping.mapping()}", newMapping.mapping());
+				mappings.put(targetString, switch (request.target()) {
+					case TypeElement element -> new ReplacementMapping(element, newMapping.mapping());
+					case null, default -> newMapping;
+				});
+				processingEnvironment.getMessager().printNote(STR."Skipping generating \{request.qualifiedName()} as \{targetString} has been mapped to \{newMapping.mapping()}", newMapping.mapping());
 			}
-			case null -> mappings.put(targetString, new StructureGenerationRequest(target, destination, newName));
-			default -> throw new IllegalStateException(STR."Both \{oldMapping.target()} and \{target} have the same name, \{target.getSimpleName()}");
+			case null -> mappings.put(targetString, request);
+			default -> throw new IllegalStateException(STR."Both \{oldMapping.target()} and \{request.target()} have the same name, \{targetString}");
 		}
 	}
 
+	void addStructureGenerationRequest(TypeElement target, PackageElement destination, CharSequence newName) throws IllegalStateException {
+		addGenerationRequest(new StructureGenerationRequest(target, destination, newName));
+	}
+
 	void addBitFlagGenerationRequest(CharSequence target, List<ExecutableElement> flags, PackageElement destination, CharSequence newName) {
-		var targetString = target.toString();
+		var request = new FlagGenerationRequest(target, flags, destination, newName);
+		addGenerationRequest(request);
 
-		checkForAndAddExistingMapping(target, destination, newName);
+		var bitFieldMemberTarget = new StringBuilder(target);
+		bitFieldMemberTarget.replace(bitFieldMemberTarget.length() - "Flags".length(), bitFieldMemberTarget.length(), "FlagBits");
+		mappings.putIfAbsent(bitFieldMemberTarget.toString(), new FlagBitConversionMapping(bitFieldMemberTarget, mappings.get(target.toString())));
+	}
 
-		var oldMapping = mappings.remove(targetString);
-		switch (oldMapping) {
-			case NewMapping newMapping -> {
-				mappings.put(targetString, newMapping);
-				processingEnvironment.getMessager().printNote(STR."Skipping generating \{destination}.\{newName} as \{target} has been mapped to \{newMapping.mapping()}", newMapping.mapping());
-			}
-			case null -> mappings.put(targetString, new BitFlagGenerationRequest(target, flags, destination, newName));
-			default -> throw new IllegalStateException(STR."Both \{oldMapping.target()} and \{target} has two mappings");
-		}
+	void addEnumGenerationRequest(CharSequence target, List<ExecutableElement> values, PackageElement destination, CharSequence newName) {
+		addGenerationRequest(new EnumGenerationRequest(target, values, destination, newName));
 	}
 
 	private void checkForAndAddExistingMapping(CharSequence target, PackageElement destination, CharSequence newName) {
@@ -157,20 +164,28 @@ final class GenerationContext {
 		}
 	}
 
-	public Collection<StructureGenerationRequest> structureGenerationRequests() {
-		return mappings.values().stream().<StructureGenerationRequest>mapMulti((nameMapping, consumer) -> {
+	public Stream<StructureGenerationRequest> structureGenerationRequests() {
+		return mappings.values().stream().mapMulti((nameMapping, consumer) -> {
 			if (nameMapping instanceof StructureGenerationRequest request) {
 				consumer.accept(request);
 			}
-		}).toList();
+		});
 	}
 
-	public Collection<BitFlagGenerationRequest> bitFlagGenerationRequests() {
-		return mappings.values().stream().<BitFlagGenerationRequest>mapMulti((nameMapping, consumer) -> {
-			if (nameMapping instanceof BitFlagGenerationRequest request) {
+	public Stream<FlagGenerationRequest> bitFlagGenerationRequests() {
+		return mappings.values().stream().mapMulti((nameMapping, consumer) -> {
+			if (nameMapping instanceof FlagGenerationRequest request) {
 				consumer.accept(request);
 			}
-		}).toList();
+		});
+	}
+
+	public Stream<EnumGenerationRequest> enumGenerationRequests() {
+		return mappings.values().stream().mapMulti((nameMapping, consumer) -> {
+			if (nameMapping instanceof EnumGenerationRequest request) {
+				consumer.accept(request);
+			}
+		});
 	}
 
 	public Stream<ExecutableElement> coreBitFlags() {
@@ -182,6 +197,18 @@ final class GenerationContext {
 				.filter(m -> {
 					var name = m.getSimpleName().toString();
 					return name.startsWith("VK_") && name.endsWith("_BIT");
+				});
+	}
+
+	public Stream<ExecutableElement> coreEnums() {
+		if (vulkanHeader == null) {
+			return Stream.empty();
+		}
+
+		return vulkanHeaderMethods.values().stream()
+				.filter(m -> {
+					var name = m.getSimpleName().toString();
+					return name.startsWith("VK_") && !name.endsWith("_BIT");
 				});
 	}
 

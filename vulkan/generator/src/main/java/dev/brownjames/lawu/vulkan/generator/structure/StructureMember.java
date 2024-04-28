@@ -87,8 +87,12 @@ interface StructureMember {
 				new MappedConversionMember(cppMember.name(), mapping);
 
 			// VkSomeFlags flags;
-			case CommentParser.Value _ when context.mapping(cppMember.type().toString()).orElse(null) instanceof BitFlagGenerationRequest mapping ->
-				new BitFlagConversionMember(cppMember.name(), mapping);
+			case CommentParser.Value _ when context.mapping(cppMember.type().toString()).orElse(null) instanceof FlagGenerationRequest mapping ->
+				new FlagConversionMember(cppMember.name(), mapping);
+
+			// VkSomeFlagBits flagBit;
+			case CommentParser.Value _ when context.mapping(cppMember.type().toString()).orElse(null) instanceof EnumMapping mapping ->
+				new EnumConversionMember(cppMember.name(), mapping);
 
 			// uint32_t aType;
 			case CommentParser.Value _ ->

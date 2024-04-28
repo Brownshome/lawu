@@ -9,7 +9,7 @@ import java.util.Optional;
  * @param name the name of the member
  * @param mapping the mapping for the member type
  */
-record BitFlagConversionMember(CharSequence name, BitFlagGenerationRequest mapping) implements StructureMember {
+record FlagConversionMember(CharSequence name, FlagGenerationRequest mapping) implements StructureMember {
 	@Override
 	public CharSequence simpleTypeName() {
 		return STR."Collection<\{mapping.name()}>";
