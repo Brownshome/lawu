@@ -44,7 +44,7 @@ public record InstanceCreateInfo(
 	/**
 	 * A description of a pNext member for the createInstance function
 	 */
-	public interface Next extends NextStructure { }
+	public interface Next extends NextStructure<Next> { }
 
 	public InstanceCreateInfo() {
 		this(Optional.empty(), BitFlag.noFlags(Flag.class), List.of(), List.of(), List.of());
@@ -84,12 +84,12 @@ public record InstanceCreateInfo(
 	}
 
 	public InstanceCreateInfo withDrivers(DirectDriverLoadingMode mode, VulkanDriver... drivers) {
-		return withNext(new DirectDriverLoadingList(mode, List.of(drivers)))
+		return withNext(DirectDriverLoadingList.of(mode, List.of(drivers)))
 				.withExtension(DirectDriverLoadingExtension.extensionName());
 	}
 
 	public InstanceCreateInfo withDebugCallback(Collection<DebugUtilsMessageSeverity> severities, Collection<DebugUtilsMessageType> types, DebugUtilsMessengerCallback callback) {
-		return withDebugCallback(new DebugUtilsMessengerCreateInfo(severities, types, callback));
+		return withDebugCallback(DebugUtilsMessengerCreateInfo.of(severities, types, callback));
 	}
 
 	public InstanceCreateInfo withDebugCallback(DebugUtilsMessengerCreateInfo messengerCreateInfo) {
@@ -156,7 +156,7 @@ public record InstanceCreateInfo(
 		var instanceCreateInfo = VkInstanceCreateInfo.allocate(arena);
 		VkInstanceCreateInfo.sType$set(instanceCreateInfo, vulkan_h.VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO());
 
-		VkInstanceCreateInfo.pNext$set(instanceCreateInfo, NextStructure.buildNativeStructureChain(arena, nexts).head());
+		VkInstanceCreateInfo.pNext$set(instanceCreateInfo, NextStructure.asRaw(arena, nexts));
 		VkInstanceCreateInfo.flags$set(instanceCreateInfo, BitFlag.getFlagBits(flags));
 		VkInstanceCreateInfo.pApplicationInfo$set(instanceCreateInfo, applicationInfo
 				.map(info -> info.createNativeStructure(arena))

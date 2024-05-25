@@ -1,6 +1,6 @@
 package dev.brownjames.lawu.vulkan.generator.structure;
 
-import java.util.Optional;
+import static java.lang.StringTemplate.RAW;
 
 /**
  * A member with a mapping. For example, {@code VkPhysicalDeviceFeatures features}
@@ -9,22 +9,17 @@ import java.util.Optional;
  */
 record MappedConversionMember(CharSequence name, NameMapping mapping) implements SliceMember {
 	@Override
-	public CharSequence simpleTypeName() {
-		return mapping.name();
+	public NameMapping type() {
+		return mapping;
 	}
 
 	@Override
-	public Optional<CharSequence> importTypeName() {
-		return Optional.of(mapping.qualifiedName());
+	public StringTemplate of(StructureGenerationRequest request, CharSequence argument) {
+		return RAW."\{mapping}.of(\{slice(request, argument)})";
 	}
 
 	@Override
-	public CharSequence of(StructureGenerationRequest request, CharSequence argument) {
-		return STR."\{mapping.name()}.of(\{slice(request, argument)})";
-	}
-
-	@Override
-	public CharSequence asNative(StructureGenerationRequest request, CharSequence argument) {
-		return STR."\{name}.asNative(\{slice(request, argument)});";
+	public StringTemplate asRaw(StructureGenerationRequest request, CharSequence argument, CharSequence allocator) {
+		return RAW."\{name}.asRaw(\{slice(request, argument)}, \{allocator});";
 	}
 }

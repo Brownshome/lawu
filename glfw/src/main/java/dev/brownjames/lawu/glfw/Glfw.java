@@ -3,6 +3,7 @@ package dev.brownjames.lawu.glfw;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.SymbolLookup;
+import java.lang.foreign.ValueLayout;
 import java.util.List;
 
 import dev.brownjames.lawu.glfw.bindings.GLFWerrorfun;

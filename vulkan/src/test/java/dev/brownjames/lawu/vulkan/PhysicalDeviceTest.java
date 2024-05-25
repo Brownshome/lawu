@@ -21,7 +21,7 @@ final class PhysicalDeviceTest {
 				.withExtension(GetPhysicalDeviceProperties2Extension.extensionName())
 				.validate();
 
-		device = instance.allPhysicalDevices().getFirst();
+		device = instance.enumeratePhysicalDevices().getFirst();
 	}
 
 	@AfterEach

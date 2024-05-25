@@ -3,19 +3,19 @@ package dev.brownjames.lawu.vulkan.generator.structure;
 import java.lang.foreign.AddressLayout;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
 import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.ElementFilter;
 
 import dev.brownjames.lawu.vulkan.generator.GenerationFailedException;
+
+import static java.lang.StringTemplate.RAW;
 
 /**
  * A member of a generated structure
@@ -41,7 +41,7 @@ interface StructureMember {
 	 * A list of extra declarations
 	 * @return a list of extra declarations
 	 */
-	default List<? extends CharSequence> extraDeclarations() {
+	default List<? extends StringTemplate> extraDeclarations(StructureGenerationRequest request) {
 		return Collections.emptyList();
 	}
 
@@ -97,8 +97,11 @@ interface StructureMember {
 			// uint32_t aType;
 			case CommentParser.Value _ ->
 				new ValueMember(cppMember.name(),
-						bindingInformation.type,
-						Optional.ofNullable((TypeElement) context.processingEnvironment().getTypeUtils().asElement(bindingInformation.type)));
+						bindingInformation.type);
+
+			case CommentParser.Pointer(CommentParser.Declarator to) when to instanceof CommentParser.Value &&
+					"void".contentEquals(cppMember.type()) && "pNext".contentEquals(cppMember.name()) ->
+				new NextMember();
 
 			// Type *aPointer, (*aFunction)();
 			case CommentParser.Pointer _, CommentParser.Function _ -> {
@@ -106,8 +109,7 @@ interface StructureMember {
 						.orElseThrow(() -> new GenerationFailedException(STR."Unable to find \{MemorySegment.class.getCanonicalName()}", bindingInformation.bindingMethod));
 
 				yield new ValueMember(cppMember.name(),
-						memorySegment.asType(),
-						Optional.of(memorySegment));
+						memorySegment.asType());
 			}
 
 			// char string[12];
@@ -191,16 +193,10 @@ interface StructureMember {
 	}
 
 	/**
-	 * The simple name of the type of this member
+	 * The type of this member
 	 * @return the name
 	 */
-	CharSequence simpleTypeName();
-
-	/**
-	 * The fully-qualified type of this member (if it exists). Primitive types will not have such a name
-	 * @return the name
-	 */
-	Optional<CharSequence> importTypeName();
+	Object type();
 
 	/**
 	 * The name of this member
@@ -209,35 +205,27 @@ interface StructureMember {
 	CharSequence name();
 
 	/**
-	 * Gets the import name required for this member's implementation
-	 * @param request the request object for this structure generation
-	 * @return a collection of import names
-	 */
-	default Collection<? extends CharSequence> imports(StructureGenerationRequest request) {
-		return importTypeName().map(List::of).orElse(Collections.emptyList());
-	}
-
-	/**
 	 * Generates a snippet of code that, using the given argument, constructs the member's Java type
 	 * @param request the request object for this structure
 	 * @param argument the name of the argument containing native memory
 	 * @return a code snippet
 	 */
-	CharSequence of(StructureGenerationRequest request, CharSequence argument);
+	StringTemplate of(StructureGenerationRequest request, CharSequence argument);
 
 	/**
 	 * Generates a snippet of code that writes this member's information into the given argument
 	 * @param request the request object for this structure
-	 * @param argument the name of the argument containing native memory
+	 * @param destination the name of the argument containing native memory
+	 * @param allocator the name of the argument containing the allocator
 	 * @return a code snippet
 	 */
-	CharSequence asNative(StructureGenerationRequest request, CharSequence argument);
+	StringTemplate asRaw(StructureGenerationRequest request, CharSequence destination, CharSequence allocator);
 
 	/**
 	 * A code snippet for this member's declaration
 	 * @return a code snippet
 	 */
-	default CharSequence declaration() {
-		return STR."\{simpleTypeName()} \{name()}";
+	default StringTemplate declaration() {
+		return RAW."\{type()} \{name()}";
 	}
 }

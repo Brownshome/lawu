@@ -20,7 +20,14 @@ public record ElementLookup(
 		Optional<TypeElement> string,
 		Optional<TypeElement> valueLayout,
 		Optional<TypeElement> addressLayout,
-		Optional<TypeElement> bitFlag
+		Optional<TypeElement> bitFlag,
+		Optional<TypeElement> nextStructure,
+		Optional<TypeElement> nextStructureNative,
+		Optional<TypeElement> structure,
+		Optional<TypeElement> structureWithNext,
+		Optional<TypeElement> valueStructure,
+		Optional<TypeElement> nativeWithNext,
+		Optional<TypeElement> nativeStructure
 ) {
 	public static ElementLookup lookupElements(ProcessingEnvironment processingEnvironment) {
 		return new ElementLookup(
@@ -31,7 +38,15 @@ public record ElementLookup(
 				lookupElement(String.class, processingEnvironment),
 				lookupElement(ValueLayout.class, processingEnvironment),
 				lookupElement(AddressLayout.class, processingEnvironment),
-				lookupElement("dev.brownjames.lawu.vulkan", "dev.brownjames.lawu.vulkan.BitFlag", processingEnvironment));
+				lookupElement("dev.brownjames.lawu.vulkan", "dev.brownjames.lawu.vulkan.BitFlag", processingEnvironment),
+				lookupElement("dev.brownjames.lawu.vulkan", "dev.brownjames.lawu.vulkan.NextStructure", processingEnvironment),
+				lookupElement("dev.brownjames.lawu.vulkan", "dev.brownjames.lawu.vulkan.NextStructure.Native", processingEnvironment),
+				lookupElement("dev.brownjames.lawu.vulkan", "dev.brownjames.lawu.vulkan.Structure", processingEnvironment),
+				lookupElement("dev.brownjames.lawu.vulkan", "dev.brownjames.lawu.vulkan.Structure.WithNext", processingEnvironment),
+				lookupElement("dev.brownjames.lawu.vulkan", "dev.brownjames.lawu.vulkan.Structure.Value", processingEnvironment),
+				lookupElement("dev.brownjames.lawu.vulkan", "dev.brownjames.lawu.vulkan.Structure.WithNext.Native", processingEnvironment),
+				lookupElement("dev.brownjames.lawu.vulkan", "dev.brownjames.lawu.vulkan.Structure.Native", processingEnvironment)
+		);
 	}
 
 	private static Optional<TypeElement> lookupElement(CharSequence moduleName, CharSequence typeName, ProcessingEnvironment processingEnvironment) {

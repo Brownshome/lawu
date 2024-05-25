@@ -15,4 +15,14 @@ public enum DirectDriverLoadingMode {
 	public int value() {
 		return value;
 	}
+
+	public static DirectDriverLoadingMode of(int value) {
+		if (value == EXCLUSIVE.value()) {
+			return EXCLUSIVE;
+		} else if (value == INCLUSIVE.value()) {
+			return INCLUSIVE;
+		}
+
+		throw new IllegalArgumentException();
+	}
 }

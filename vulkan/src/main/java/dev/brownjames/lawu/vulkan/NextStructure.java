@@ -1,35 +1,64 @@
+/*
+ * Copyright James Brown 2023
+ * Author: James Brown
+ */
+
 package dev.brownjames.lawu.vulkan;
 
-import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
+import java.lang.foreign.SegmentAllocator;
+
+import dev.brownjames.lawu.vulkan.annotation.MapStructure;
+import dev.brownjames.lawu.vulkan.bindings.VkBaseInStructure;
 
 /**
  * A structure in a pNext chain
  */
-public interface NextStructure {
-	record NativeStructureChain(List<MemorySegment> items, MemorySegment head) { }
-
-	static NativeStructureChain buildNativeStructureChain(Arena arena, Collection<? extends NextStructure> nexts) {
-		var items = new ArrayList<MemorySegment>(nexts.size());
-		var head = MemorySegment.NULL;
-
-		for (var next : nexts) {
-			head = next.createNativeStructure(arena, head);
-			items.add(head);
+@MapStructure("VkBaseInStructure")
+@MapStructure("VkBaseOutStructure")
+public interface NextStructure<T extends NextStructure<T>> extends Structure.WithNext<T> {
+	/**
+	 * A helper method to create a memory segment for a structure chain from a given collection of nexts
+	 * @param allocator the allocator to use
+	 * @param nexts the nexts to chain together
+	 * @return a memory segment containing the head of the created chain, or a null segment
+	 * @param <T> the type of item in this chain
+	 */
+	static <T extends NextStructure<T>> MemorySegment asRaw(SegmentAllocator allocator, Iterable<? extends T> nexts) {
+		for (var head : nexts) {
+			var nativeHead = head.asNative(allocator);
+			nativeHead.addNext(allocator, nexts);
+			return nativeHead.asRaw();
 		}
 
-		return new NativeStructureChain(items, head);
+		return MemorySegment.NULL;
+	}
+
+	interface Native<T extends NextStructure<T>> extends NextStructure<T>, WithNext.Native<T> {
+		@Override
+		default StructureType sType() {
+			return StructureType.of(VkBaseInStructure.sType$get(raw()));
+		}
+
+		@Override
+		default NextStructure.Native<T> asNative() {
+			return this;
+		}
 	}
 
 	/**
-	 * Creates a native structure
-	 *
-	 * @param arena the arena to allocate it from
-	 * @param next  the next item in the chain
-	 * @return an allocated native structure
+	 * Gets the structure-type of this next instance
+	 * @return the structure type
 	 */
-	MemorySegment createNativeStructure(Arena arena, MemorySegment next);
+	StructureType sType();
+
+	@Override
+	default NextStructure.Native<T> asNative() {
+		return (NextStructure.Native<T>) WithNext.super.asNative();
+	}
+
+	@Override
+	default NextStructure.Native<T> asNative(SegmentAllocator allocator) {
+		return (NextStructure.Native<T>) WithNext.super.asNative(allocator);
+	}
 }

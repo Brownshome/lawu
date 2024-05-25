@@ -6,7 +6,7 @@ import dev.brownjames.lawu.vulkan.debugutils.*;
 public final class TestVulkanInstanceHelper {
 	private static final System.Logger LOGGER = System.getLogger(String.valueOf(TestVulkanInstanceHelper.class.getModule().getName()));
 
-	private static final DebugUtilsMessengerCreateInfo createInfo = new DebugUtilsMessengerCreateInfo(
+	private static final DebugUtilsMessengerCreateInfo createInfo = DebugUtilsMessengerCreateInfo.of(
 			BitFlag.allFlags(DebugUtilsMessageSeverity.class),
 			BitFlag.allFlags(DebugUtilsMessageType.class),
 			(severity, messageTypes, callbackData) -> {

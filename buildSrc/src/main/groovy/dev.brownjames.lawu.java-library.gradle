@@ -25,6 +25,10 @@ dependencies {
 	}
 }
 
+java {
+	withSourcesJar()
+}
+
 javadoc {
 	options {
 		source = java.sourceCompatibility.majorVersion

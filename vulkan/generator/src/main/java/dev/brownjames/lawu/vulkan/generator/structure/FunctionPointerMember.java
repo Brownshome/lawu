@@ -1,10 +1,11 @@
 package dev.brownjames.lawu.vulkan.generator.structure;
 
-import java.util.ArrayList;
-import java.util.Collection;
+import java.lang.foreign.Arena;
 import java.util.List;
 
 import javax.lang.model.element.TypeElement;
+
+import static java.lang.StringTemplate.RAW;
 
 /**
  * Members like {@code PFN_vkSomeFunction member}
@@ -21,21 +22,13 @@ record FunctionPointerMember(CharSequence name, TypeElement functionPointer) imp
 	}
 
 	@Override
-	public Collection<? extends CharSequence> imports(StructureGenerationRequest request) {
-		var result = new ArrayList<CharSequence>(TypeElementMember.super.imports(request));
-		result.add(request.target().getQualifiedName());
-		result.add(functionPointer.getQualifiedName());
-		return result;
+	public StringTemplate of(StructureGenerationRequest request, CharSequence argument) {
+		return RAW."\{request.target()}.\{name}$get(\{argument})";
 	}
 
 	@Override
-	public CharSequence of(StructureGenerationRequest request, CharSequence argument) {
-		return STR."\{request.target().getSimpleName()}.\{name}$get(\{argument})";
-	}
-
-	@Override
-	public CharSequence asNative(StructureGenerationRequest request, CharSequence argument) {
-		return STR."\{request.target().getSimpleName()}.\{name}$set(\{argument}, \{name});";
+	public StringTemplate asRaw(StructureGenerationRequest request, CharSequence argument, CharSequence allocator) {
+		return RAW."\{request.target()}.\{name}$set(\{argument}, \{name});";
 	}
 
 	private CharSequence convertedFunctionPointerName() {
@@ -45,26 +38,26 @@ record FunctionPointerMember(CharSequence name, TypeElement functionPointer) imp
 	}
 
 	@Override
-	public List<? extends CharSequence> extraDeclarations() {
+	public List<? extends StringTemplate> extraDeclarations(StructureGenerationRequest request) {
 		return List.of(
-				STR."""
+				RAW."""
 					/**
-					 * Creates a {@link \{functionPointer.getSimpleName()}} object from the memory in this structure
+					 * Creates a {@link \{functionPointer}} object from the memory in this structure
 					 * @param arena the scope of validity for the used memory
 					 * @return a function pointer structure
 					 */
-					public \{functionPointer.getSimpleName()} \{convertedFunctionPointerName()}(Arena arena) {
-						return \{functionPointer.getSimpleName()}.ofAddress(\{name}, arena);
+					default \{functionPointer} \{convertedFunctionPointerName()}(\{Arena.class} arena) {
+						return \{functionPointer}.ofAddress(\{name}(), arena);
 					}
 				""",
-				STR."""
+				RAW."""
 					/**
-					 * Creates a {@link \{functionPointer.getSimpleName()}} object from the memory in this structure
+					 * Creates a {@link \{functionPointer}} object from the memory in this structure
 					 *
 					 * @return a function pointer structure
 					 */
-					public \{functionPointer.getSimpleName()} \{convertedFunctionPointerName()}() {
-						return \{convertedFunctionPointerName()}(Arena.global());
+					default \{functionPointer} \{convertedFunctionPointerName()}() {
+						return \{convertedFunctionPointerName()}(\{Arena.class}.global());
 					}
 				"""
 		);

@@ -6,9 +6,11 @@
 plugins {
 	id 'dev.brownjames.lawu.java-library'
 	id 'io.github.krakowski.jextract' version '0.4.2'
+	id 'maven-publish'
 }
 
-version '0.1.0'
+group 'dev.brownjames.lawu'
+version '0.1.0-SNAPSHOT'
 
 tasks.withType(JavaCompile).configureEach {
 	options.fork = true
@@ -36,6 +38,43 @@ jextract {
 			includes = [
 					"${System.env.VULKAN_SDK}/include"
 			]
+		}
+	}
+}
+
+publishing {
+	repositories {
+		maven {
+			name = 'GithubPackages'
+			url = uri('https://maven.pkg.github.com/Brownshome/lawu')
+			credentials {
+				username = project.properties['gpr.usr']
+				password = project.properties['gpr.key']
+			}
+		}
+	}
+
+	publications {
+		mavenJava(MavenPublication) {
+			artifactId 'glfw'
+			from components.java
+
+			pom {
+				name = 'lawu'
+				description = 'Glfw bindings for Java using JExtract and the foreign function API'
+				url = 'https://maven.pkg.github.com/Brownshome/lawu'
+				developers {
+					developer {
+						id = 'Brownshome'
+						name = 'James Brown'
+						email = 'james.antony.brown@gmail.com'
+					}
+				}
+				scm {
+					connection = 'scm:git:git://github.com/Brownshome/lawu.git'
+					url = 'https://github.com/Brownshome/lawu'
+				}
+			}
 		}
 	}
 }

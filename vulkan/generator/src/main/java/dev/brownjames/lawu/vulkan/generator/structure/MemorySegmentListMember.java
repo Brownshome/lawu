@@ -2,9 +2,10 @@ package dev.brownjames.lawu.vulkan.generator.structure;
 
 import java.lang.foreign.MemorySegment;
 import java.util.List;
-import java.util.Optional;
 
 import javax.lang.model.element.*;
+
+import static java.lang.StringTemplate.RAW;
 
 record MemorySegmentListMember(CharSequence name, Element layout) implements ListMember {
 	MemorySegmentListMember {
@@ -28,22 +29,17 @@ record MemorySegmentListMember(CharSequence name, Element layout) implements Lis
 	}
 
 	@Override
-	public CharSequence listMemberSimpleTypeName() {
-		return MemorySegment.class.getSimpleName();
+	public Class<MemorySegment> memberType() {
+		return MemorySegment.class;
 	}
 
 	@Override
-	public Optional<CharSequence> listMemberImportTypeName() {
-		return Optional.of(MemorySegment.class.getCanonicalName());
+	public StringTemplate asRaw(CharSequence itemArgument, CharSequence sliceArgument, CharSequence allocatorArgument) {
+		return RAW."\{sliceArgument}.set(\{layoutExpression()}, 0L, \{itemArgument});";
 	}
 
 	@Override
-	public CharSequence asNative(CharSequence itemArgument, CharSequence sliceArgument) {
-		return STR."\{sliceArgument}.set(\{layoutExpression()}, 0L, \{itemArgument});";
-	}
-
-	@Override
-	public CharSequence of(String sliceArgument) {
-		return STR."\{sliceArgument}.get(\{layoutExpression()}, 0L)";
+	public StringTemplate of(String sliceArgument) {
+		return RAW."\{sliceArgument}.get(\{layoutExpression()}, 0L)";
 	}
 }

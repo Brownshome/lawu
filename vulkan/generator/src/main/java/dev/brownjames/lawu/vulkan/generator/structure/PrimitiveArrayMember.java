@@ -1,16 +1,15 @@
 package dev.brownjames.lawu.vulkan.generator.structure;
 
 import java.lang.foreign.MemorySegment;
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
-import java.util.Optional;
 
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
+
+import static java.lang.StringTemplate.RAW;
 
 /**
  * A member of the form {@code uint32_t values[32]} mapping to an array of primitives
@@ -31,31 +30,13 @@ record PrimitiveArrayMember(CharSequence name, TypeMirror type, VariableElement 
 	}
 
 	@Override
-	public CharSequence of(StructureGenerationRequest request, CharSequence argument) {
-		return STR."\{slice(request, argument)}.toArray(\{typeContainingValueLayout().getSimpleName()}.\{valueLayout.getSimpleName()})";
+	public StringTemplate of(StructureGenerationRequest request, CharSequence argument) {
+		return RAW."\{slice(request, argument)}.toArray(\{typeContainingValueLayout()}.\{valueLayout.getSimpleName()})";
 	}
 
 	@Override
-	public CharSequence asNative(StructureGenerationRequest request, CharSequence argument) {
-		return STR."\{slice(request, argument)}.copyFrom(\{MemorySegment.class.getSimpleName()}.ofArray(\{name}));";
-	}
-
-	@Override
-	public CharSequence simpleTypeName() {
-		return type.toString();
-	}
-
-	@Override
-	public Optional<CharSequence> importTypeName() {
-		return Optional.empty();
-	}
-
-	@Override
-	public Collection<? extends CharSequence> imports(StructureGenerationRequest request) {
-		var result = new ArrayList<CharSequence>(SliceMember.super.imports(request));
-		result.add(MemorySegment.class.getCanonicalName());
-		result.add(typeContainingValueLayout().getQualifiedName());
-		return result;
+	public StringTemplate asRaw(StructureGenerationRequest request, CharSequence argument, CharSequence allocator) {
+		return RAW."\{slice(request, argument)}.copyFrom(\{MemorySegment.class}.ofArray(\{name}));";
 	}
 
 	private TypeElement typeContainingValueLayout() {

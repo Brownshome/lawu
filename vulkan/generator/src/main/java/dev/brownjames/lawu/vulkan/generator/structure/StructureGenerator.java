@@ -13,6 +13,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.function.UnaryOperator;
 import java.util.regex.Pattern;
+import java.util.stream.Collector;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -343,15 +344,15 @@ public final class StructureGenerator extends AbstractProcessor {
 	private interface Generator {
 		record Generated() { }
 
-		void generate(GenerationRequest request, Collection<? extends CharSequence> importStatements) throws GenerationFailedException;
+		void generate(GenerationRequest request) throws GenerationFailedException;
 	}
 
-	private static final StringTemplate.Processor<Generator, RuntimeException> GENERATOR = stringTemplate -> (request, importStatements) -> {
+	private static final StringTemplate.Processor<Generator, RuntimeException> GENERATOR = stringTemplate -> request -> {
 		var importGroups = List.of(
 				Pattern.compile("java\\..*"),
 				Pattern.compile("javax\\..*"));
 
-		var localImportStatements = new ArrayList<CharSequence>(importStatements);
+		var localImportStatements = new ArrayList<CharSequence>();
 
 		var convertTemplate = new UnaryOperator<StringTemplate>() {
 			@Override
@@ -381,6 +382,10 @@ public final class StructureGenerator extends AbstractProcessor {
 						case TypeElement type -> {
 							iterator.set(type.getSimpleName());
 							localImportStatements.add(type.getQualifiedName());
+						}
+						case NameMapping mapping -> {
+							iterator.set(mapping.name());
+							localImportStatements.add(mapping.qualifiedName());
 						}
 						default -> { }
 					}
@@ -436,6 +441,20 @@ public final class StructureGenerator extends AbstractProcessor {
 		}
 	};
 
+	private Collector<StringTemplate, ?, StringTemplate> stringTemplateJoiner(StringTemplate separator) {
+		return Collectors.reducing(RAW."", (a, b) -> {
+			if (a.fragments().size() == 1 && a.fragments().getFirst().isEmpty()) {
+				return b;
+			}
+
+			if (b.fragments().size() == 1 && b.fragments().getFirst().isEmpty()) {
+				return a;
+			}
+
+			return StringTemplate.combine(a, separator, b);
+		});
+	}
+
 	private void generateStructure(StructureGenerationRequest request) throws GenerationFailedException {
 		var comment = processingEnv.getElementUtils().getDocComment(request.target());
 
@@ -452,11 +471,83 @@ public final class StructureGenerator extends AbstractProcessor {
 
 		// Combine these with the native information
 		var members = getStructureMembers(request, structDeclaration, bindingInformationMap);
+		boolean hasNextField = members.stream().anyMatch(m -> m instanceof NextMember);
 
-		var memberImports = members.stream()
-				.flatMap(structureMember -> structureMember.imports(request).stream());
+		var structureWithNext = getContext().lookup().structureWithNext()
+				.orElseThrow(() -> new GenerationFailedException("Unable to find 'Structure.WithNext'", request.target()));
+		var structure = getContext().lookup().structure()
+				.orElseThrow(() -> new GenerationFailedException("Unable to find 'Structure'", request.target()));
+		var valueStructure = getContext().lookup().valueStructure()
+				.orElseThrow(() -> new GenerationFailedException("Unable to find 'Structure'", request.target()));
 
-		var ofDeclaration =
+		var superClass = hasNextField ? RAW."\{structureWithNext}<\{request}.Next>" : RAW."\{structure}";
+
+		var valueRecord =
+				RAW."""
+					record Value(\{members.stream().filter(m -> !(m instanceof NextMember)).map(StructureMember::declaration).collect(stringTemplateJoiner(RAW.", "))}) implements \{request}, Structure.\{valueStructure} {
+						@Override
+						public void asRaw(\{MemorySegment.class} destination, \{SegmentAllocator.class} allocator) {
+							\{members.stream().map(m -> m.asRaw(request, "destination", "allocator")).collect(stringTemplateJoiner(RAW."\n\t\t\t"))}
+						}
+
+						@Override
+						public \{MemorySegment.class} asRaw(\{SegmentAllocator.class} allocator) {
+							var raw = \{request.target()}.allocate(allocator);
+							asRaw(raw, allocator);
+							return raw;
+						}
+
+						@Override
+						public \{request}.Value asValue() {
+							return this;
+						}
+
+						@Override
+						public \{request}.Native asNative(\{SegmentAllocator.class} allocator) {
+							return of(asRaw(allocator));
+						}
+
+						@Override
+						public \{request}.Native asNative() {
+							return of(asRaw());
+						}
+					}
+				""";
+
+		var nativeSuperClass = hasNextField
+				? RAW."WithNext.\{getContext().lookup().nativeWithNext()
+				.orElseThrow(() -> new GenerationFailedException("Unable to find 'Structure.WithNext.Native'", request.target()))}<Next>"
+				: RAW."Structure.\{getContext().lookup().nativeStructure()
+				.orElseThrow(() -> new GenerationFailedException("Unable to find 'Structure.Native'", request.target()))}";
+		var nativeRecord =
+				RAW."""
+					record Native(\{MemorySegment.class} raw) implements \{request}, \{nativeSuperClass} {
+						@Override
+						public \{request}.Value asValue() {
+							return of(\{members.stream().filter(m -> !(m instanceof NextMember)).map(m -> RAW."\{m.name()}()").collect(stringTemplateJoiner(RAW.", "))});
+						}
+
+						@Override
+						public \{request}.Native asNative() {
+							return this;
+						}
+
+						@Override
+						public \{request}.Native asNative(\{SegmentAllocator.class} allocator) {
+							return this;
+						}
+
+				\{members.stream().filter(m -> !(m instanceof NextMember)).map(m ->
+						RAW."""
+								@Override
+								public \{m.type()} \{m.name()}() {
+									return \{m.of(request, "raw")};
+								}
+						""").collect(stringTemplateJoiner(RAW."\n"))}
+					}
+				""";
+
+		var ofDeclarations = List.of(
 				RAW."""
 					/**
 					 * Creates an instance of this structure from a given memory segment.
@@ -466,51 +557,50 @@ public final class StructureGenerator extends AbstractProcessor {
 					 *
 					 * @return an instance of this structure
 					 */
-					public static \{request.name()} of(\{MemorySegment.class} raw) {
-						return new \{request.name()}(\{members.stream().map(m -> m.of(request, "raw")).collect(Collectors.joining(",\n\t\t\t\t"))});
+					static Native of(\{MemorySegment.class} raw) {
+						return new Native(raw);
 					}
-				""";
+				""",
+				RAW."""
+					static Value of(\{members.stream().filter(m -> !(m instanceof NextMember)).map(StructureMember::declaration).collect(stringTemplateJoiner(RAW.", "))}) {
+						return new Value(\{members.stream().filter(m -> !(m instanceof NextMember)).map(StructureMember::name).collect(Collectors.joining(", "))});
+					}
+				""");
 
-		var asNativeDeclarations = List.of(
+		var allocateDeclarations = List.of(
 				RAW."""
 					/**
-					 * Copies data from this structure into the given destination.
+					 * Allocates an instance of this structure
 					 *
-					 * @param destination the memory segment to copy data into
+					 * @param allocator the allocator to use
 					 */
-					public void asNative(\{MemorySegment.class} destination) {
-						\{members.stream().map(m -> m.asNative(request, "destination")).collect(Collectors.joining("\n\t\t"))}
+					public static Native allocate(\{SegmentAllocator.class} allocator) {
+						return of(\{request.target()}.allocate(allocator));
 					}
 				""",
 				RAW."""
 					/**
-					 * Creates a memory segment from this structure
-					 *
-					 * @param allocator the segment allocator to allocate from
-					 *
-					 * @return an allocated memory-segment
+					 * Allocates an instance of this structure
 					 */
-					public \{MemorySegment.class} asNative(\{SegmentAllocator.class} allocator) {
-						var raw = \{request.target()}.allocate(allocator);
-						asNative(raw);
-						return raw;
-					}
-				""",
-				RAW."""
-					/**
-					 * Creates a memory segment from this structure allocated from an auto arena
-					 *
-					 * @return an allocated memory segment
-					 */
-					public \{MemorySegment.class} asNative() {
-						return asNative(\{Arena.class}.ofAuto());
+					public static Native allocate() {
+						return allocate(\{Arena.class}.ofAuto());
 					}
 				""");
 
 		var declarations = new ArrayList<>();
-		declarations.add(ofDeclaration);
-		declarations.addAll(asNativeDeclarations);
-		members.forEach(m -> declarations.addAll(m.extraDeclarations()));
+		declarations.add(valueRecord);
+		declarations.add(nativeRecord);
+		declarations.addAll(ofDeclarations);
+		declarations.addAll(allocateDeclarations);
+		members.forEach(m -> {
+			declarations.addAll(m.extraDeclarations(request));
+
+			if (m instanceof NextMember) {
+				return;
+			}
+
+			declarations.add(RAW."\t\{m.type()} \{m.name()}();");
+		});
 
 		var fragments = Collections.nCopies(declarations.size() + 1, "\n");
 		var declarationsTemplate = StringTemplate.of(fragments, declarations);
@@ -520,13 +610,11 @@ public final class StructureGenerator extends AbstractProcessor {
 		 * \{comment.trim().replace("\n", "\n * ")}
 		 */
 		\{new Generator.Generated()}
-		public record \{request.name()}(\{members.stream().map(StructureMember::declaration).collect(Collectors.joining(", "))}) {\{declarationsTemplate}}
-		""".generate(request, memberImports.toList());
+		public interface \{request.name()} extends \{superClass} {\{declarationsTemplate}}
+		""".generate(request);
 	}
 
 	private void generateBitFlags(FlagGenerationRequest generationRequest) throws GenerationFailedException {
-		var imports = new ArrayList<CharSequence>();
-
 		var bitFlag = elements.bitFlag()
 				.orElseThrow(() -> new GenerationFailedException("No BitFlag type found", generationRequest.destination()));
 
@@ -544,8 +632,7 @@ public final class StructureGenerator extends AbstractProcessor {
 		removeSuffix(flagPrefix, "FLAG");
 		flagPrefix.insert(0, "VK_");
 
-		StringBuilder flags = new StringBuilder();
-		for (var flag : generationRequest.flags()) {
+		var flags = generationRequest.flags().stream().map(flag -> {
 			var nativeName = flag.getSimpleName();
 			var enclosing = flag.getEnclosingElement();
 
@@ -572,24 +659,17 @@ public final class StructureGenerator extends AbstractProcessor {
 				name.replace(0, startingNumberLength, replacement);
 			}
 
-			if (!enclosing.getKind().isDeclaredType() || !(enclosing instanceof TypeElement enclosingType)) {
-				throw new GenerationFailedException(STR."\{flag.getSimpleName()} is not enclosed in a type", flag);
+			if (!enclosing.getKind().isDeclaredType() || !(enclosing instanceof TypeElement)) {
+				throw new GenerationFailedException(STR."\{flag.getSimpleName()} is not enclosed in a type", flag).unchecked();
 			}
 
-			imports.add(enclosingType.getQualifiedName());
-
-			if (!flags.isEmpty()) {
-				flags.append(",\n\t");
-			}
-			flags.append(STR."\{name}(\{enclosing.getSimpleName()}.\{nativeName}())");
-		}
-
-		flags.append(';');
+			return RAW."\{name}(\{enclosing}.\{nativeName}())";
+		}).collect(stringTemplateJoiner(RAW.",\n\t"));
 
 		GENERATOR."""
 		\{new Generator.Generated()}
 		public enum \{generationRequest.name()} implements \{bitFlag} {
-			\{flags}
+			\{flags};
 
 			private static final \{Map.class}<\{Integer.class}, \{generationRequest.name()}> LOOKUP =
 					\{Map.class}.ofEntries(\{Arrays.class}.stream(values()).map(v -> \{Map.class}.entry(v.bit, v)).toArray(\{Map.Entry[].class}::new));
@@ -609,12 +689,10 @@ public final class StructureGenerator extends AbstractProcessor {
 				return \{Objects.class}.requireNonNull(LOOKUP.get(bit));
 			}
 		}
-		""".generate(generationRequest, imports);
+		""".generate(generationRequest);
 	}
 
 	private void generateEnum(EnumGenerationRequest generationRequest) throws GenerationFailedException {
-		var imports = new ArrayList<CharSequence>();
-
 		// Extract the flag prefix
 		var valuePrefix = new StringBuilder(generationRequest.name());
 		for (var i = 1; i < valuePrefix.length(); i++) {
@@ -630,10 +708,7 @@ public final class StructureGenerator extends AbstractProcessor {
 		valuePrefix.insert(0, "VK_");
 		valuePrefix.append('_');
 
-		StringBuilder values = new StringBuilder();
-		StringBuilder lookup = new StringBuilder();
-
-		for (var value : generationRequest.values()) {
+		var values = generationRequest.values().stream().map(value -> {
 			var nativeName = value.getSimpleName();
 			var enclosing = value.getEnclosingElement();
 
@@ -659,24 +734,17 @@ public final class StructureGenerator extends AbstractProcessor {
 				name.replace(0, startingNumberLength, replacement);
 			}
 
-			if (!enclosing.getKind().isDeclaredType() || !(enclosing instanceof TypeElement enclosingType)) {
-				throw new GenerationFailedException(STR."\{value.getSimpleName()} is not enclosed in a type", value);
+			if (!enclosing.getKind().isDeclaredType() || !(enclosing instanceof TypeElement)) {
+				throw new GenerationFailedException(STR."\{value.getSimpleName()} is not enclosed in a type", value).unchecked();
 			}
 
-			imports.add(enclosingType.getQualifiedName());
-
-			if (!values.isEmpty()) {
-				values.append(",\n\t");
-			}
-			values.append(STR."\{name}(\{enclosing.getSimpleName()}.\{nativeName}())");
-		}
-
-		values.append(';');
+			return RAW."\{name}(\{enclosing}.\{nativeName}())";
+		}).collect(stringTemplateJoiner(RAW.",\n\t"));
 
 		GENERATOR."""
 		\{new Generator.Generated()}
 		public enum \{generationRequest.name()} {
-			\{values}
+			\{values};
 
 			private static final \{Map.class}<\{Integer.class}, \{generationRequest.name()}> LOOKUP =
 					\{Map.class}.ofEntries(\{Arrays.class}.stream(values()).map(v -> \{Map.class}.entry(v.value, v)).toArray(\{Map.Entry[].class}::new));
@@ -695,7 +763,7 @@ public final class StructureGenerator extends AbstractProcessor {
 				return \{Objects.class}.requireNonNull(LOOKUP.get(value));
 			}
 		}
-		""".generate(generationRequest, imports);
+		""".generate(generationRequest);
 	}
 
 	private static ArrayList<StructureMember> getStructureMembers(StructureGenerationRequest request, CommentParser.ParsedStructOrUnion structDeclaration, Map<String, StructureMember.BindingInformation> bindingInformationMap) throws GenerationFailedException {

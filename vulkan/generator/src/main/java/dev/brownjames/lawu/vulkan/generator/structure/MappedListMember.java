@@ -1,9 +1,10 @@
 package dev.brownjames.lawu.vulkan.generator.structure;
 
 import java.util.List;
-import java.util.Optional;
 
 import javax.lang.model.element.*;
+
+import static java.lang.StringTemplate.RAW;
 
 record MappedListMember(CharSequence name, TargetedMapping mapping, Element layout) implements ListMember {
 	MappedListMember {
@@ -27,22 +28,17 @@ record MappedListMember(CharSequence name, TargetedMapping mapping, Element layo
 	}
 
 	@Override
-	public CharSequence listMemberSimpleTypeName() {
-		return mapping.name();
+	public TargetedMapping memberType() {
+		return mapping;
 	}
 
 	@Override
-	public Optional<CharSequence> listMemberImportTypeName() {
-		return Optional.of(mapping.qualifiedName());
+	public StringTemplate asRaw(CharSequence itemArgument, CharSequence sliceArgument, CharSequence allocatorArgument) {
+		return RAW."\{itemArgument}.asRaw(\{sliceArgument}, \{allocatorArgument});";
 	}
 
 	@Override
-	public CharSequence asNative(CharSequence itemArgument, CharSequence sliceArgument) {
-		return STR."\{itemArgument}.asNative(\{sliceArgument});";
-	}
-
-	@Override
-	public CharSequence of(String sliceArgument) {
-		return STR."\{mapping.name()}.of(\{sliceArgument})";
+	public StringTemplate of(String sliceArgument) {
+		return RAW."(\{mapping}) \{mapping}.of(\{sliceArgument})";
 	}
 }

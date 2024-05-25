@@ -29,10 +29,10 @@ final class VulkanInstanceTest {
 	}
 
 	@Test
-	void allPhysicalDevices() throws VulkanValidationException {
+	void enumeratePhysicalDevices() throws VulkanValidationException {
 		try (var vulkan = TestVulkanInstanceHelper.builder().validate();
 		     var _ = TestVulkanInstanceHelper.createMessenger(DebugUtilsExtension.extend(vulkan))) {
-			var devices = vulkan.allPhysicalDevices();
+			var devices = vulkan.enumeratePhysicalDevices();
 
 			assertFalse(devices.isEmpty());
 		}

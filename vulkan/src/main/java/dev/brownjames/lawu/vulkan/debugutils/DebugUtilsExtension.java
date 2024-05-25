@@ -45,12 +45,12 @@ public final class DebugUtilsExtension implements VulkanHandle {
 	}
 
 	public DebugUtilsMessenger createDebugUtilsMessenger(Collection<DebugUtilsMessageSeverity> severities, Collection<DebugUtilsMessageType> types, DebugUtilsMessengerCallback callback) {
-		return createDebugUtilsMessenger(new DebugUtilsMessengerCreateInfo(severities, types, callback));
+		return createDebugUtilsMessenger(DebugUtilsMessengerCreateInfo.of(severities, types, callback));
 	}
 
 	public DebugUtilsMessenger createDebugUtilsMessenger(DebugUtilsMessengerCreateInfo createInfo) {
 		try (var arena = Arena.ofConfined()) {
-			return createDebugUtilsMessenger(createInfo.createNativeStructure(arena));
+			return createDebugUtilsMessenger(createInfo.asRaw(arena));
 		}
 	}
 
