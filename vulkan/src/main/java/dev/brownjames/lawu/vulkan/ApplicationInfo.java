@@ -25,7 +25,7 @@ public record ApplicationInfo(
 	}
 
 	public ApplicationInfo withApplicationVersion(Version version) {
-		return withApplicationVersion(VulkanVersionNumber.of(version.toStable()).encoded());
+		return withApplicationVersion(VulkanVersionNumber.of(version.toStable()).asRaw());
 	}
 
 	public ApplicationInfo withApplicationVersion(int version) {
@@ -39,7 +39,7 @@ public record ApplicationInfo(
 	}
 
 	public ApplicationInfo withEngineVersion(Version version) {
-		return withEngineVersion(VulkanVersionNumber.of(version.toStable()).encoded());
+		return withEngineVersion(VulkanVersionNumber.of(version.toStable()).asRaw());
 	}
 
 	public ApplicationInfo withEngineVersion(int version) {
@@ -89,7 +89,7 @@ public record ApplicationInfo(
 		VkApplicationInfo.applicationVersion$set(applicationInfo, applicationVersion);
 		VkApplicationInfo.pEngineName$set(applicationInfo, engineName.map(arena::allocateUtf8String).orElse(MemorySegment.NULL));
 		VkApplicationInfo.engineVersion$set(applicationInfo, engineVersion);
-		VkApplicationInfo.apiVersion$set(applicationInfo, apiVersion.map(VulkanVersionNumber::encoded).orElse(0));
+		VkApplicationInfo.apiVersion$set(applicationInfo, apiVersion.map(VulkanVersionNumber::asRaw).orElse(0));
 		return applicationInfo;
 	}
 }

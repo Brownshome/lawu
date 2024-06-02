@@ -94,6 +94,10 @@ interface StructureMember {
 			case CommentParser.Value _ when context.mapping(cppMember.type().toString()).orElse(null) instanceof EnumMapping mapping ->
 				new EnumConversionMember(cppMember.name(), mapping);
 
+			// SomeType someKnownVariable;
+			case CommentParser.Value _ when context.mapping(STR."\{cppMember.type()} \{cppMember.name()}").orElse(null) instanceof NewMapping mapping ->
+				new MappedValueMember(cppMember.name(), mapping);
+
 			// uint32_t aType;
 			case CommentParser.Value _ ->
 				new ValueMember(cppMember.name(),
@@ -136,7 +140,7 @@ interface StructureMember {
 						layoutList.getFirst());
 			}
 
-			// someType knownVariableName
+			// someType knownVariableName[12];
 			case CommentParser.Array(CommentParser.Declarator of) when of instanceof CommentParser.Value &&
 					context.mapping(STR."\{cppMember.type()} \{cppMember.name()}").orElse(null) instanceof NewMapping mapping ->
 				new MappedConversionMember(cppMember.name(), mapping);

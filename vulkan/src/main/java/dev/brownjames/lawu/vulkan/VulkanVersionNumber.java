@@ -1,6 +1,7 @@
 package dev.brownjames.lawu.vulkan;
 
 import de.skuzzle.semantic.Version;
+import dev.brownjames.lawu.vulkan.annotation.MapStructure;
 import dev.brownjames.lawu.vulkan.bindings.PFN_vkEnumerateInstanceVersion;
 import dev.brownjames.lawu.vulkan.bindings.vulkan_h;
 
@@ -14,6 +15,7 @@ import java.util.Optional;
  * @param minor the minor version number
  * @param patch the patch version number
  */
+@MapStructure("uint32_t apiVersion")
 public record VulkanVersionNumber(int variant, int major, int minor, int patch) {
 	/*
 	 * @note james.brown 31 March 2024
@@ -90,7 +92,7 @@ public record VulkanVersionNumber(int variant, int major, int minor, int patch) 
 	 * Encodes this version according as per the {@code VK_MAKE_API_VERSION} macro
 	 * @return the encoded version
 	 */
-	public int encoded() {
+	public int asRaw() {
 		int result = variant;
 
 		result <<= MAJOR_BITS;
