@@ -5,16 +5,10 @@
 
 package dev.brownjames.lawu.vulkan.generator.structure;
 
-import java.io.IOException;
 import java.lang.foreign.*;
 import java.math.BigInteger;
-import java.time.OffsetDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.function.Function;
-import java.util.function.UnaryOperator;
-import java.util.regex.Pattern;
-import java.util.stream.Collector;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -24,8 +18,6 @@ import javax.lang.model.element.*;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.ElementFilter;
 
-import com.ibm.icu.text.NumberFormat;
-import com.ibm.icu.text.RuleBasedNumberFormat;
 import dev.brownjames.lawu.vulkan.annotation.GenerateCoreStructuresFrom;
 import dev.brownjames.lawu.vulkan.annotation.MapStructure;
 
@@ -40,11 +32,7 @@ import static java.lang.StringTemplate.RAW;
 @SupportedAnnotationTypes("dev.brownjames.lawu.vulkan.annotation/dev.brownjames.lawu.vulkan.annotation.*")
 @SupportedSourceVersion(SourceVersion.RELEASE_21)
 public final class StructureGenerator extends AbstractProcessor {
-	private static final String VULKAN_FUNCTION_POINTER_PREFIX = "PFN_vk";
-	private static final String VULKAN_PREFIX = "Vk";
 	private static final ScopedValue<GenerationContext> CONTEXT = ScopedValue.newInstance();
-	private static final String BIT_FLAG_SUFFIX = "Flags";
-	private static final NumberFormat SPELL_OUT_FORMATTER = new RuleBasedNumberFormat(RuleBasedNumberFormat.SPELLOUT);
 
 	private ElementLookup elements;
 
@@ -127,7 +115,7 @@ public final class StructureGenerator extends AbstractProcessor {
 		}));
 
 		for (var entry : bitFlagMaps.entrySet()) {
-			context.addBitFlagGenerationRequest(entry.getKey(), entry.getValue(), destination, convertBitFlagsName(entry.getKey()));
+			context.addBitFlagGenerationRequest(entry.getKey(), entry.getValue(), destination, NameUtilities.convertBitFlagsName(entry.getKey()));
 		}
 	}
 
@@ -140,14 +128,14 @@ public final class StructureGenerator extends AbstractProcessor {
 				var enclosing = valueGetter.getEnclosingElement();
 
 				var name = new StringBuilder(nativeName);
-				removePrefix(name, valuePrefix.toString());
+				NameUtilities.removePrefix(name, valuePrefix.toString());
 				if (Character.isDigit(name.charAt(0))) {
 					var startingNumberLength = (int) name.chars()
 							.takeWhile(Character::isDigit)
 							.count();
 					var startingNumber = name.substring(0, startingNumberLength);
 
-					var replacement = SPELL_OUT_FORMATTER.format(new BigInteger(startingNumber)).replaceAll("[ -]", "_").toUpperCase();
+					var replacement = NameUtilities.SPELL_OUT_FORMATTER.format(new BigInteger(startingNumber)).replaceAll("[ -]", "_").toUpperCase();
 
 					if (name.length() > startingNumberLength) {
 						char firstCharAfterReplacement = name.charAt(startingNumberLength);
@@ -184,7 +172,7 @@ public final class StructureGenerator extends AbstractProcessor {
 						var start = snippet.lastIndexOf(' ', end) + 1;
 						var name = snippet.substring(start, end);
 
-						if (name.endsWith("Bits") || isExtensionName(name)) {
+						if (name.endsWith("Bits") || NameUtilities.isExtensionName(name)) {
 							return;
 						}
 
@@ -214,7 +202,7 @@ public final class StructureGenerator extends AbstractProcessor {
 		})).collect(Collectors.groupingBy(EnumValueInformation::owner));
 
 		for (var entry : enumMaps.entrySet()) {
-			var newName = convertEnumName(entry.getKey());
+			var newName = NameUtilities.convertEnumName(entry.getKey());
 
 			var valuePrefix = new StringBuilder(newName);
 			for (var i = 1; i < valuePrefix.length(); i++) {
@@ -302,9 +290,9 @@ public final class StructureGenerator extends AbstractProcessor {
 
 					for (var type : ElementFilter.typesIn(targetPackage.getEnclosedElements())) {
 						try {
-							if (isVulkanCoreName(type.getSimpleName())) {
-								result.addStructureGenerationRequest(type, annotatedPackage, convertStructureName(type.getSimpleName()));
-							} else if (isCoreVulkanFunctionPointerName(type.getSimpleName())) {
+							if (NameUtilities.isVulkanCoreName(type.getSimpleName())) {
+								result.addStructureGenerationRequest(type, annotatedPackage, NameUtilities.convertStructureName(type.getSimpleName()));
+							} else if (NameUtilities.isCoreVulkanFunctionPointerName(type.getSimpleName())) {
 								result.addFunctionPointer(type);
 							}
 						} catch (IllegalStateException ise) {
@@ -316,202 +304,6 @@ public final class StructureGenerator extends AbstractProcessor {
 		});
 
 		return result;
-	}
-
-	private boolean isVulkanCoreName(CharSequence name) {
-		return isVulkanName(name) && !isExtensionName(name);
-	}
-
-	private boolean isCoreVulkanFunctionPointerName(CharSequence name) {
-		return isFunctionPointerName(name) && !isExtensionName(name);
-	}
-
-	private boolean isFunctionPointerName(CharSequence name) {
-		return name.toString().startsWith(VULKAN_FUNCTION_POINTER_PREFIX);
-	}
-
-	private boolean isExtensionName(CharSequence name) {
-		return Character.isUpperCase(name.charAt(name.length() - 1)) && Character.isUpperCase(name.charAt(name.length() - 2));
-	}
-
-	private boolean isVulkanName(CharSequence name) {
-		return name.toString().startsWith(VULKAN_PREFIX);
-	}
-
-	private CharSequence convertStructureName(CharSequence nativeName) {
-		var result = new StringBuilder(nativeName);
-
-		// Remove the prefix
-		removePrefix(result, VULKAN_PREFIX);
-
-		// Replace 3D and 2D
-		record Replacement(String value, String replacement) {
-			void execute(StringBuilder string) {
-				for (int index = 0; (index = string.indexOf(value, index)) != -1;) {
-					string.replace(index, index + value.length(), Replacement.this.replacement);
-				}
-			}
-		}
-
-		List.of(
-				new Replacement("3D", "3d"),
-				new Replacement("2D", "2d"),
-				new Replacement("RGBA10X6", "Rgba10x6")
-		).forEach(r -> r.execute(result));
-
-		// Remove extension suffixes
-		removeExtensionSuffixes(result);
-
-		return result;
-	}
-
-	private CharSequence convertBitFlagsName(CharSequence nativeName) {
-		var result = new StringBuilder(convertStructureName(nativeName));
-
-		removeSuffix(result, BIT_FLAG_SUFFIX);
-		result.append("Flag");
-
-		return result;
-	}
-
-	private CharSequence convertEnumName(CharSequence nativeName) {
-		return convertStructureName(nativeName);
-	}
-
-	private static void removeSuffix(StringBuilder builder, String suffix) {
-		removeIfMatched(builder, suffix, builder.length() - suffix.length(), builder.length());
-	}
-
-	private static void removePrefix(StringBuilder builder, String prefix) {
-		removeIfMatched(builder, prefix, 0, prefix.length());
-	}
-
-	private static void removeIfMatched(StringBuilder builder, String match, int start, int end) {
-		if (match.contentEquals(builder.subSequence(start, end))) {
-			builder.delete(start, end);
-		}
-	}
-
-	private static void removeExtensionSuffixes(StringBuilder result) {
-		// Remove extension suffixes
-		while (Character.isUpperCase(result.charAt(result.length() - 1))) {
-			result.deleteCharAt(result.length() - 1);
-		}
-	}
-
-	@FunctionalInterface
-	private interface Generator {
-		record Generated() { }
-
-		void generate(GenerationRequest request) throws GenerationFailedException;
-	}
-
-	private static final StringTemplate.Processor<Generator, RuntimeException> GENERATOR = stringTemplate -> request -> {
-		var importGroups = List.of(
-				Pattern.compile("java\\..*"),
-				Pattern.compile("javax\\..*"));
-
-		var localImportStatements = new ArrayList<CharSequence>();
-
-		var convertTemplate = new UnaryOperator<StringTemplate>() {
-			@Override
-			public StringTemplate apply(StringTemplate st) {
-				var values = new ArrayList<>(st.values());
-				for (var iterator = values.listIterator(); iterator.hasNext(); ) {
-					switch (iterator.next()) {
-						case Generator.Generated _ -> iterator.set(
-								apply(RAW."""
-							@\{Generated.class}(
-									value = "\{StructureGenerator.class.getName()}",
-									date = "\{DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(OffsetDateTime.now())}",
-									comments = "Generated from \{request.target().toString()}")""").interpolate()
-						);
-						case Class<?> clazz when clazz.isMemberClass() ->
-								iterator.set(RAW."\{clazz.getDeclaringClass()}.\{clazz.getSimpleName()}");
-						case Class<?> clazz -> {
-							iterator.set(clazz.getSimpleName());
-
-							while (clazz.isArray()) {
-								clazz = clazz.getComponentType();
-							}
-
-							localImportStatements.add(clazz.getCanonicalName());
-						}
-						case StringTemplate template -> iterator.set(apply(template).interpolate());
-						case TypeElement type -> {
-							iterator.set(type.getSimpleName());
-							localImportStatements.add(type.getQualifiedName());
-						}
-						case NameMapping mapping -> {
-							iterator.set(mapping.name());
-							localImportStatements.add(mapping.qualifiedName());
-						}
-						default -> { }
-					}
-				}
-
-				return StringTemplate.of(st.fragments(), values);
-			}
-		};
-
-		var convertedTemplate = convertTemplate.apply(stringTemplate);
-
-		Map<Integer, List<CharSequence>> imports = localImportStatements.stream()
-				.map(CharSequence::toString)
-				.sorted()
-				.distinct()
-				.collect(Collectors.groupingBy(charSequence -> {
-					for (int i = 0; i < importGroups.size(); i++) {
-						if (importGroups.get(i).matcher(charSequence).matches()) {
-							return i;
-						}
-					}
-
-					return importGroups.size();
-				}));
-
-		StringBuilder combinedImports = new StringBuilder();
-		for (int i = 0; i <= importGroups.size(); i++) {
-			var importGroup = imports.getOrDefault(i, Collections.emptyList());
-			if (importGroup.isEmpty()) {
-				continue;
-			}
-
-			combinedImports.append('\n');
-			for (var importStatement : importGroup) {
-				combinedImports.append("import ");
-				combinedImports.append(importStatement);
-				combinedImports.append(";\n");
-			}
-		}
-
-		var header =
-				RAW."""
-				package \{request.destination()};
-				\{combinedImports}
-				""";
-
-		var result = StringTemplate.combine(header, convertedTemplate).interpolate();
-
-		try (var destination = CONTEXT.get().processingEnvironment().getFiler().createSourceFile(request.qualifiedName(), request.owner()).openWriter()) {
-			destination.write(result);
-		} catch (IOException e) {
-			throw new GenerationFailedException(STR."Unable to write out file: \{e}", request.owner(), e);
-		}
-	};
-
-	private Collector<StringTemplate, ?, StringTemplate> stringTemplateJoiner(StringTemplate separator) {
-		return Collectors.reducing(RAW."", (a, b) -> {
-			if (a.fragments().size() == 1 && a.fragments().getFirst().isEmpty()) {
-				return b;
-			}
-
-			if (b.fragments().size() == 1 && b.fragments().getFirst().isEmpty()) {
-				return a;
-			}
-
-			return StringTemplate.combine(a, separator, b);
-		});
 	}
 
 	private void generateStructure(StructureGenerationRequest request) throws GenerationFailedException {
@@ -543,10 +335,10 @@ public final class StructureGenerator extends AbstractProcessor {
 
 		var valueRecord =
 				RAW."""
-					record Value(\{members.stream().filter(m -> !(m instanceof NextMember)).map(StructureMember::declaration).collect(stringTemplateJoiner(RAW.", "))}) implements \{request}, Structure.\{valueStructure} {
+					record Value(\{members.stream().filter(m -> !(m instanceof NextMember)).map(StructureMember::declaration).collect(TemplateUtilities.stringTemplateJoiner(RAW.", "))}) implements \{request}, Structure.\{valueStructure} {
 						@Override
 						public void asRaw(\{MemorySegment.class} destination, \{SegmentAllocator.class} allocator) {
-							\{members.stream().map(m -> m.asRaw(request, "destination", "allocator")).collect(stringTemplateJoiner(RAW."\n\t\t\t"))}
+							\{members.stream().map(m -> m.asRaw(request, "destination", "allocator")).collect(TemplateUtilities.stringTemplateJoiner(RAW."\n\t\t\t"))}
 						}
 
 						@Override
@@ -583,7 +375,7 @@ public final class StructureGenerator extends AbstractProcessor {
 					record Native(\{MemorySegment.class} raw) implements \{request}, \{nativeSuperClass} {
 						@Override
 						public \{request}.Value asValue() {
-							return of(\{members.stream().filter(m -> !(m instanceof NextMember)).map(m -> RAW."\{m.name()}()").collect(stringTemplateJoiner(RAW.", "))});
+							return of(\{members.stream().filter(m -> !(m instanceof NextMember)).map(m -> RAW."\{m.name()}()").collect(TemplateUtilities.stringTemplateJoiner(RAW.", "))});
 						}
 
 						@Override
@@ -602,7 +394,7 @@ public final class StructureGenerator extends AbstractProcessor {
 								public \{m.type()} \{m.name()}() {
 									return \{m.of(request, "raw")};
 								}
-						""").collect(stringTemplateJoiner(RAW."\n"))}
+						""").collect(TemplateUtilities.stringTemplateJoiner(RAW."\n"))}
 					}
 				""";
 
@@ -621,7 +413,7 @@ public final class StructureGenerator extends AbstractProcessor {
 					}
 				""",
 				RAW."""
-					static Value of(\{members.stream().filter(m -> !(m instanceof NextMember)).map(StructureMember::declaration).collect(stringTemplateJoiner(RAW.", "))}) {
+					static Value of(\{members.stream().filter(m -> !(m instanceof NextMember)).map(StructureMember::declaration).collect(TemplateUtilities.stringTemplateJoiner(RAW.", "))}) {
 						return new Value(\{members.stream().filter(m -> !(m instanceof NextMember)).map(StructureMember::name).collect(Collectors.joining(", "))});
 					}
 				""");
@@ -664,11 +456,11 @@ public final class StructureGenerator extends AbstractProcessor {
 		var fragments = Collections.nCopies(declarations.size() + 1, "\n");
 		var declarationsTemplate = StringTemplate.of(fragments, declarations);
 
-		GENERATOR."""
+		TemplateUtilities.GENERATOR."""
 		/**
 		 * \{comment.trim().replace("\n", "\n * ")}
 		 */
-		\{new Generator.Generated()}
+		\{new TemplateUtilities.Generated()}
 		public interface \{request.name()} extends \{superClass} {\{declarationsTemplate}}
 		""".generate(request);
 	}
@@ -688,7 +480,7 @@ public final class StructureGenerator extends AbstractProcessor {
 				i++;
 			}
 		}
-		removeSuffix(flagPrefix, "FLAG");
+		NameUtilities.removeSuffix(flagPrefix, "FLAG");
 		flagPrefix.insert(0, "VK_");
 
 		var flags = generationRequest.flags().stream().map(flag -> {
@@ -696,15 +488,15 @@ public final class StructureGenerator extends AbstractProcessor {
 			var enclosing = flag.getEnclosingElement();
 
 			var name = new StringBuilder(nativeName);
-			removeSuffix(name, "_BIT");
-			removePrefix(name, flagPrefix.toString());
+			NameUtilities.removeSuffix(name, "_BIT");
+			NameUtilities.removePrefix(name, flagPrefix.toString());
 			if (Character.isDigit(name.charAt(0))) {
 				var startingNumberLength = (int) name.chars()
 						.takeWhile(Character::isDigit)
 						.count();
 				var startingNumber = name.substring(0, startingNumberLength);
 
-				var replacement = SPELL_OUT_FORMATTER.format(new BigInteger(startingNumber)).replaceAll("[ -]", "_").toUpperCase();
+				var replacement = NameUtilities.SPELL_OUT_FORMATTER.format(new BigInteger(startingNumber)).replaceAll("[ -]", "_").toUpperCase();
 
 				if (name.length() > startingNumberLength) {
 					char firstCharAfterReplacement = name.charAt(startingNumberLength);
@@ -723,10 +515,10 @@ public final class StructureGenerator extends AbstractProcessor {
 			}
 
 			return RAW."\{name}(\{enclosing}.\{nativeName}())";
-		}).collect(stringTemplateJoiner(RAW.",\n\t"));
+		}).collect(TemplateUtilities.stringTemplateJoiner(RAW.",\n\t"));
 
-		GENERATOR."""
-		\{new Generator.Generated()}
+		TemplateUtilities.GENERATOR."""
+		\{new TemplateUtilities.Generated()}
 		public enum \{generationRequest.name()} implements \{bitFlag} {
 			\{flags};
 
@@ -770,8 +562,8 @@ public final class StructureGenerator extends AbstractProcessor {
 						Function.identity(),
 						(a, b) -> a.name().length() <= b.name().length() ? a : b));
 
-		GENERATOR."""
-		\{new Generator.Generated()}
+		TemplateUtilities.GENERATOR."""
+		\{new TemplateUtilities.Generated()}
 		public enum \{generationRequest.name()} {
 		\{values};
 
