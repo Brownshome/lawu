@@ -60,6 +60,11 @@ public interface DebugUtilsMessengerCreateInfo extends InstanceCreateInfo.Next {
 			asRaw(raw, allocator);
 			return raw;
 		}
+
+		@Override
+		public DebugUtilsMessengerCreateInfo.Native asNative(SegmentAllocator allocator) {
+			return of(asRaw(allocator));
+		}
 	}
 
 	record Native(MemorySegment raw) implements DebugUtilsMessengerCreateInfo, NextStructure.Native<InstanceCreateInfo.Next> {

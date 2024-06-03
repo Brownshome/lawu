@@ -25,11 +25,13 @@ public final class PhysicalDevice implements VulkanHandle {
 	}
 
 	public PhysicalDeviceProperties getProperties() {
-		try (var arena = Arena.ofConfined()) {
-			var properties = VkPhysicalDeviceProperties.allocate(arena);
-			instance.getPhysicalDeviceProperties(handle, properties);
-			return PhysicalDeviceProperties.of(properties);
-		}
+		return getProperties(Arena.ofAuto());
+	}
+
+	public PhysicalDeviceProperties getProperties(Arena arena) {
+		var properties = VkPhysicalDeviceProperties.allocate(arena);
+		instance.getPhysicalDeviceProperties(handle, properties);
+		return PhysicalDeviceProperties.of(properties);
 	}
 
 	public record GetPropertiesResult(PhysicalDeviceProperties properties, List<PhysicalDeviceProperties2.Next> nexts) { }
@@ -61,11 +63,13 @@ public final class PhysicalDevice implements VulkanHandle {
 	}
 
 	public PhysicalDeviceFeatures getFeatures() {
-		try (var arena = Arena.ofConfined()) {
-			var features = VkPhysicalDeviceFeatures.allocate(arena);
-			instance.getPhysicalDeviceFeatures(handle, features);
-			return PhysicalDeviceFeatures.of(features);
-		}
+		return getFeatures(Arena.ofAuto());
+	}
+
+	public PhysicalDeviceFeatures getFeatures(Arena arena) {
+		var features = VkPhysicalDeviceFeatures.allocate(arena);
+		instance.getPhysicalDeviceFeatures(handle, features);
+		return PhysicalDeviceFeatures.of(features);
 	}
 
 	public record GetFeaturesResult(PhysicalDeviceFeatures features, List<PhysicalDeviceFeatures2.Next> nexts) { }
@@ -97,11 +101,13 @@ public final class PhysicalDevice implements VulkanHandle {
 	}
 
 	public ImageFormatProperties getImageFormatProperties(int format, int type, int imageTiling, int imageUsageFlags, int imageCreateFlags) {
-		try (var arena = Arena.ofConfined()) {
-			var properties = VkImageFormatProperties.allocate(arena);
-			instance.getPhysicalDeviceImageFormatProperties(handle, format, type, imageTiling, imageUsageFlags, imageCreateFlags, properties);
-			return ImageFormatProperties.of(properties);
-		}
+		return getImageFormatProperties(Arena.ofAuto(), format, type, imageTiling, imageUsageFlags, imageCreateFlags);
+	}
+
+	public ImageFormatProperties getImageFormatProperties(Arena arena, int format, int type, int imageTiling, int imageUsageFlags, int imageCreateFlags) {
+		var properties = VkImageFormatProperties.allocate(arena);
+		instance.getPhysicalDeviceImageFormatProperties(handle, format, type, imageTiling, imageUsageFlags, imageCreateFlags, properties);
+		return ImageFormatProperties.of(properties);
 	}
 
 	public record GetImageFormatPropertiesResult(ImageFormatProperties properties, List<ImageFormatProperties2.Next> nexts) { }
@@ -155,8 +161,12 @@ public final class PhysicalDevice implements VulkanHandle {
 	}
 
 	public List<QueueFamilyProperties> getQueueFamilyProperties() {
-		try (var arena = Arena.ofConfined()) {
-			var familyCount = arena.allocate(vulkan_h.uint32_t);
+		return getQueueFamilyProperties(Arena.ofAuto());
+	}
+
+	public List<QueueFamilyProperties> getQueueFamilyProperties(Arena arena) {
+		try (var confinedArena = Arena.ofConfined()) {
+			var familyCount = confinedArena.allocate(vulkan_h.uint32_t);
 			instance.getPhysicalDeviceQueueFamilyProperties(handle, familyCount, MemorySegment.NULL);
 
 			var properties = VkQueueFamilyProperties.allocateArray(familyCount.get(vulkan_h.uint32_t, 0L), arena);

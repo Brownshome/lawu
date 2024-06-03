@@ -1,6 +1,7 @@
 package dev.brownjames.lawu.vulkan;
 
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.SegmentAllocator;
 import java.util.List;
 
 import dev.brownjames.lawu.vulkan.getphysicaldeviceproperties2.GetPhysicalDeviceProperties2Extension;
@@ -37,12 +38,9 @@ final class PhysicalDeviceTest {
 
 	@Test
 	void getProperties2() {
-		PhysicalDevice.PropertiesNext vulkanVersionOneProperties = (chainArena, next) -> {
-			var properties = VkPhysicalDeviceVulkan11Properties.allocate(chainArena);
-			VkPhysicalDeviceVulkan11Properties.sType$set(properties, vulkan_h.VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_PROPERTIES());
-			VkPhysicalDeviceVulkan11Properties.pNext$set(properties, MemorySegment.NULL);
-			return properties;
-		};
+		var vulkanVersionOneProperties = PhysicalDeviceVulkan11Properties.allocate();
+		VkPhysicalDeviceVulkan11Properties.sType$set(vulkanVersionOneProperties.raw(), vulkan_h.VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_PROPERTIES());
+		VkPhysicalDeviceVulkan11Properties.pNext$set(vulkanVersionOneProperties.raw(), MemorySegment.NULL);
 
 		var properties = device.getProperties(List.of(vulkanVersionOneProperties));
 
@@ -50,20 +48,15 @@ final class PhysicalDeviceTest {
 
 		var chain = properties.nexts();
 		assertEquals(1, chain.size());
-
-		var vulkanVersionOnePropertiesResult = chain.getFirst();
-		assertEquals(VkPhysicalDeviceVulkan11Properties.$LAYOUT().byteSize(), vulkanVersionOnePropertiesResult.byteSize());
-		assertEquals(vulkan_h.VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_PROPERTIES(), VkPhysicalDeviceVulkan11Properties.sType$get(vulkanVersionOnePropertiesResult));
+		assertSame(vulkanVersionOneProperties, chain.getFirst());
+		assertEquals(vulkan_h.VK_TRUE(), vulkanVersionOneProperties.deviceLUIDValid());
 	}
 
 	@Test
 	void getPropertiesExtension() {
-		PhysicalDevice.PropertiesNext vulkanVersionOneProperties = (chainArena, next) -> {
-			var properties = VkPhysicalDeviceVulkan11Properties.allocate(chainArena);
-			VkPhysicalDeviceVulkan11Properties.sType$set(properties, vulkan_h.VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_PROPERTIES());
-			VkPhysicalDeviceVulkan11Properties.pNext$set(properties, next);
-			return properties;
-		};
+		var vulkanVersionOneProperties = PhysicalDeviceVulkan11Properties.allocate();
+		VkPhysicalDeviceVulkan11Properties.sType$set(vulkanVersionOneProperties.raw(), vulkan_h.VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_PROPERTIES());
+		VkPhysicalDeviceVulkan11Properties.pNext$set(vulkanVersionOneProperties.raw(), MemorySegment.NULL);
 
 		var extension = GetPhysicalDeviceProperties2Extension.extend(instance);
 		var properties = device.getProperties(List.of(vulkanVersionOneProperties), extension);
@@ -72,26 +65,21 @@ final class PhysicalDeviceTest {
 
 		var chain = properties.nexts();
 		assertEquals(1, chain.size());
-
-		var vulkanVersionOnePropertiesResult = chain.getFirst();
-		assertEquals(VkPhysicalDeviceVulkan11Properties.$LAYOUT().byteSize(), vulkanVersionOnePropertiesResult.byteSize());
-		assertEquals(vulkan_h.VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_PROPERTIES(), VkPhysicalDeviceVulkan11Properties.sType$get(vulkanVersionOnePropertiesResult));
+		assertSame(vulkanVersionOneProperties, chain.getFirst());
+		assertEquals(vulkan_h.VK_TRUE(), vulkanVersionOneProperties.deviceLUIDValid());
 	}
 
 	@Test
 	void getFeatures() {
 		var features = device.getFeatures();
-		assertEquals(VkPhysicalDeviceFeatures.$LAYOUT().byteSize(), features.byteSize());
+		assertInstanceOf(PhysicalDeviceFeatures.class, features);
 	}
 
 	@Test
 	void getFeatures2() {
-		PhysicalDevice.FeaturesNext vulkanVersionOneFeatures = (chainArena, next) -> {
-			var features = VkPhysicalDeviceVulkan11Features.allocate(chainArena);
-			VkPhysicalDeviceVulkan11Features.sType$set(features, vulkan_h.VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES());
-			VkPhysicalDeviceVulkan11Features.pNext$set(features, MemorySegment.NULL);
-			return features;
-		};
+		var vulkanVersionOneFeatures = PhysicalDeviceVulkan11Features.allocate();
+		VkPhysicalDeviceVulkan11Features.sType$set(vulkanVersionOneFeatures.raw(), vulkan_h.VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES());
+		VkPhysicalDeviceVulkan11Features.pNext$set(vulkanVersionOneFeatures.raw(), MemorySegment.NULL);
 
 		var features = device.getFeatures(List.of(vulkanVersionOneFeatures));
 
