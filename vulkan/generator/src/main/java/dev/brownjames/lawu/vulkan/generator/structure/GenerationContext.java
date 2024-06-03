@@ -148,7 +148,7 @@ final class GenerationContext {
 		mappings.putIfAbsent(bitFieldMemberTarget.toString(), new FlagBitConversionMapping(bitFieldMemberTarget, mappings.get(target.toString())));
 	}
 
-	void addEnumGenerationRequest(CharSequence target, List<ExecutableElement> values, PackageElement destination, CharSequence newName) {
+	void addEnumGenerationRequest(CharSequence target, List<EnumGenerationRequest.EnumValue> values, PackageElement destination, CharSequence newName) {
 		addGenerationRequest(new EnumGenerationRequest(target, values, destination, newName));
 	}
 

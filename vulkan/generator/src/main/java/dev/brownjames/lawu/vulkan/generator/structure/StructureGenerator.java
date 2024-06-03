@@ -11,6 +11,7 @@ import java.math.BigInteger;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.function.Function;
 import java.util.function.UnaryOperator;
 import java.util.regex.Pattern;
 import java.util.stream.Collector;
@@ -133,13 +134,49 @@ public final class StructureGenerator extends AbstractProcessor {
 	private void addEnumGenerationRequests(PackageElement destination) {
 		var context = getContext();
 
-		var enumMaps = context.coreEnums().collect(Collectors.groupingBy(executableElement -> {
+		record EnumValueInformation(String owner, ExecutableElement valueGetter, int value) {
+			EnumGenerationRequest.EnumValue createEnumValue(CharSequence valuePrefix) {
+				var nativeName = valueGetter.getSimpleName();
+				var enclosing = valueGetter.getEnclosingElement();
+
+				var name = new StringBuilder(nativeName);
+				removePrefix(name, valuePrefix.toString());
+				if (Character.isDigit(name.charAt(0))) {
+					var startingNumberLength = (int) name.chars()
+							.takeWhile(Character::isDigit)
+							.count();
+					var startingNumber = name.substring(0, startingNumberLength);
+
+					var replacement = SPELL_OUT_FORMATTER.format(new BigInteger(startingNumber)).replaceAll("[ -]", "_").toUpperCase();
+
+					if (name.length() > startingNumberLength) {
+						char firstCharAfterReplacement = name.charAt(startingNumberLength);
+						if (firstCharAfterReplacement == 'D') {
+							name.replace(startingNumberLength, startingNumberLength + 1, "_DIMENSIONAL");
+						} else if (firstCharAfterReplacement != '_') {
+							name.insert(startingNumberLength, '_');
+						}
+					}
+
+					name.replace(0, startingNumberLength, replacement);
+				}
+
+				if (!enclosing.getKind().isDeclaredType() || !(enclosing instanceof TypeElement)) {
+					throw new GenerationFailedException(STR."\{valueGetter().getSimpleName()} is not enclosed in a type", valueGetter()).unchecked();
+				}
+
+				return new EnumGenerationRequest.EnumValue(valueGetter, name, value);
+			}
+		}
+
+		var enumMaps = context.coreEnums().<EnumValueInformation>mapMulti(((executableElement, enumValueConsumer) -> {
 			// Get snippets
 			var comment = processingEnv.getElementUtils().getDocComment(executableElement);
-			var names = CommentParser.extractSnippets(comment)
+
+			var commentEnumValues = CommentParser.extractSnippets(comment)
 					.map(CharSequence::toString)
-					.<CharSequence>mapMulti((snippet, consumer) -> {
-						var end = snippet.indexOf(STR.".\{executableElement.getSimpleName()}");
+					.<EnumValueInformation>mapMulti((snippet, processedCommentConsumer) -> {
+						var end = snippet.indexOf(STR.".\{executableElement.getSimpleName()} = ");
 						if (end == -1) {
 							return;
 						}
@@ -151,27 +188,49 @@ public final class StructureGenerator extends AbstractProcessor {
 							return;
 						}
 
-						consumer.accept(name);
+						var numberEnd = snippet.indexOf(';', end);
+						if (numberEnd == -1) {
+							return;
+						}
+
+						var numberStart = snippet.lastIndexOf(' ', numberEnd) + 1;
+
+						try {
+							var number = Integer.parseUnsignedInt(snippet, numberStart, numberEnd, 10);
+							processedCommentConsumer.accept(new EnumValueInformation(name, executableElement, number));
+						} catch (NumberFormatException _) { }
 					})
 					.toList();
 
-			if (names.isEmpty()) {
-				return "";
+			if (commentEnumValues.isEmpty()) {
+				return;
 			}
 
-			if (names.size() > 1) {
+			if (commentEnumValues.size() > 1) {
 				throw new GenerationFailedException("Unable to find enum type", executableElement).unchecked();
 			}
 
-			return names.getFirst();
-		}));
+			enumValueConsumer.accept(commentEnumValues.getFirst());
+		})).collect(Collectors.groupingBy(EnumValueInformation::owner));
 
 		for (var entry : enumMaps.entrySet()) {
-			if (entry.getKey().isEmpty()) {
-				continue;
+			var newName = convertEnumName(entry.getKey());
+
+			var valuePrefix = new StringBuilder(newName);
+			for (var i = 1; i < valuePrefix.length(); i++) {
+				char c = valuePrefix.charAt(i);
+				valuePrefix.setCharAt(i, Character.toUpperCase(c));
+
+				if (Character.isUpperCase(c)) {
+					valuePrefix.insert(i, '_');
+					i++;
+				}
 			}
 
-			context.addEnumGenerationRequest(entry.getKey(), entry.getValue(), destination, convertEnumName(entry.getKey()));
+			valuePrefix.insert(0, "VK_");
+			valuePrefix.append('_');
+
+			context.addEnumGenerationRequest(entry.getKey(), entry.getValue().stream().map(v -> v.createEnumValue(valuePrefix)).toList(), destination, newName);
 		}
 	}
 
@@ -694,60 +753,27 @@ public final class StructureGenerator extends AbstractProcessor {
 
 	private void generateEnum(EnumGenerationRequest generationRequest) throws GenerationFailedException {
 		// Extract the flag prefix
-		var valuePrefix = new StringBuilder(generationRequest.name());
-		for (var i = 1; i < valuePrefix.length(); i++) {
-			char c = valuePrefix.charAt(i);
-			valuePrefix.setCharAt(i, Character.toUpperCase(c));
+		var values = generationRequest.values().stream()
+				.map(v -> {
+					var comment = processingEnv.getElementUtils().getDocComment(v.valueGetter());
+					return STR."""
+						/**
+						 * \{comment.trim().replace("\n", "\n * ")}
+						 */
+						\{v.name()}(\{v.value()})
+					""";
+				})
+				.collect(Collectors.joining(",\n"));
 
-			if (Character.isUpperCase(c)) {
-				valuePrefix.insert(i, '_');
-				i++;
-			}
-		}
-
-		valuePrefix.insert(0, "VK_");
-		valuePrefix.append('_');
-
-		var values = generationRequest.values().stream().map(value -> {
-			var nativeName = value.getSimpleName();
-			var enclosing = value.getEnclosingElement();
-
-			var name = new StringBuilder(nativeName);
-			removePrefix(name, valuePrefix.toString());
-			if (Character.isDigit(name.charAt(0))) {
-				var startingNumberLength = (int) name.chars()
-						.takeWhile(Character::isDigit)
-						.count();
-				var startingNumber = name.substring(0, startingNumberLength);
-
-				var replacement = SPELL_OUT_FORMATTER.format(new BigInteger(startingNumber)).replaceAll("[ -]", "_").toUpperCase();
-
-				if (name.length() > startingNumberLength) {
-					char firstCharAfterReplacement = name.charAt(startingNumberLength);
-					if (firstCharAfterReplacement == 'D') {
-						name.replace(startingNumberLength, startingNumberLength + 1, "_DIMENSIONAL");
-					} else if (firstCharAfterReplacement != '_') {
-						name.insert(startingNumberLength, '_');
-					}
-				}
-
-				name.replace(0, startingNumberLength, replacement);
-			}
-
-			if (!enclosing.getKind().isDeclaredType() || !(enclosing instanceof TypeElement)) {
-				throw new GenerationFailedException(STR."\{value.getSimpleName()} is not enclosed in a type", value).unchecked();
-			}
-
-			return RAW."\{name}(\{enclosing}.\{nativeName}())";
-		}).collect(stringTemplateJoiner(RAW.",\n\t"));
+		var valueMapping = generationRequest.values().stream()
+				.collect(Collectors.toMap(EnumGenerationRequest.EnumValue::value,
+						Function.identity(),
+						(a, b) -> a.name().length() <= b.name().length() ? a : b));
 
 		GENERATOR."""
 		\{new Generator.Generated()}
 		public enum \{generationRequest.name()} {
-			\{values};
-
-			private static final \{Map.class}<\{Integer.class}, \{generationRequest.name()}> LOOKUP =
-					\{Map.class}.ofEntries(\{Arrays.class}.stream(values()).map(v -> \{Map.class}.entry(v.value, v)).toArray(\{Map.Entry[].class}::new));
+		\{values};
 
 			private final int value;
 
@@ -760,7 +786,9 @@ public final class StructureGenerator extends AbstractProcessor {
 			}
 
 			public static \{generationRequest.name()} of(int value) {
-				return \{Objects.class}.requireNonNull(LOOKUP.get(value));
+				return switch (value) {\{valueMapping.values().stream().map(enumValue -> STR."\n\t\t\t\tcase \{enumValue.value()} -> \{enumValue.name()};").collect(Collectors.joining())}
+					default -> throw new \{IllegalArgumentException.class}(\{StringTemplate.class}.STR."\\{value} is not a valid value for \{generationRequest.name()}");
+				};
 			}
 		}
 		""".generate(generationRequest);
